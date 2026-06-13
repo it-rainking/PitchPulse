@@ -1,0 +1,8 @@
+{
+  "name": "pitchpulse",
+  "version": "1.0.0",
+  "dependencies": {
+    "dropbox": "^10.34.0",
+    "node-fetch": "^2.7.0"
+  }
+}
