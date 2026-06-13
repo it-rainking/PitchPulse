@@ -1,0 +1,11 @@
+{
+  "name": "pitchpulse-bot",
+  "version": "1.0.0",
+  "main": "bot.js",
+  "scripts": { "start": "node bot.js" },
+  "dependencies": {
+    "telegraf": "^4.16.3",
+    "express": "^4.18.2",
+    "node-fetch": "^2.7.0"
+  }
+}
