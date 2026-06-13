@@ -9,6 +9,7 @@ app.use(express.json());
 const GITHUB_REPO = process.env.GITHUB_REPO;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+console.log('ANTHROPIC KEY PREFIX:', ANTHROPIC_API_KEY ? ANTHROPIC_API_KEY.substring(0, 15) + '...' : 'UNDEFINED');
 const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
 const RAILWAY_PUBLIC_URL = process.env.RAILWAY_PUBLIC_URL;
 const PORT = process.env.PORT || 3000;
