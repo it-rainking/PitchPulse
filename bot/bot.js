@@ -23,6 +23,7 @@ async function getMatchData(teamA, teamB) {
   });
   const data = await res.json();
   const text = data.choices[0].message.content;
+  console.log('PERPLEXITY RAW:', text);
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   return JSON.parse(jsonMatch[0]);
 }
