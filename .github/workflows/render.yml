@@ -58,7 +58,7 @@ jobs:
 
       # ── 4. Installa HyperFrames ───────────────────────────
       - name: Install HyperFrames
-        run: npm install -g @hyperframes/cli
+        run: npm install -g @hyperframes
 
       # ── 5. Installa dipendenze progetto ───────────────────
       - name: Install project dependencies
