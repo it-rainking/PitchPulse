@@ -19,7 +19,7 @@ async function getMatchData(teamA, teamB) {
   const res = await fetch('https://api.perplexity.ai/chat/completions', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${PERPLEXITY_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'llama-3.1-sonar-large-128k-online', messages: [{ role: 'user', content: prompt }], max_tokens: 1500 })
+    body: JSON.stringify({ model: 'sonar-pro', messages: [{ role: 'user', content: prompt }], max_tokens: 1500 })
   });
   const data = await res.json();
   console.log('PERPLEXITY STATUS:', res.status);
