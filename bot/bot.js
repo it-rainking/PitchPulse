@@ -107,7 +107,11 @@ bot.command('prematch', async (ctx) => {
     }
   } catch (err) {
     console.error(err);
-    await ctx.reply(`❌ Errore: ${err.message}`);
+    if (err.name === 'AbortError' || err.message.includes('aborted')) {
+      await ctx.reply('⏱ Timeout: Claude ha impiegato troppo. Riprova con /prematch');
+    } else {
+      await ctx.reply(`❌ Errore: ${err.message}`);
+    }
   }
 });
 
