@@ -56,6 +56,10 @@ jobs:
             libxtst6 \
             --no-install-recommends
 
+            # ── DEBUG TEMPORANEO ──────────────────────────────────
+      - name: Debug workflow file
+        run: cat .github/workflows/render.yml | grep -A2 "HyperFrames"
+        
       # ── 4. Installa HyperFrames ───────────────────────────
       - name: Install HyperFrames
         run: npm install -g hyperframes
