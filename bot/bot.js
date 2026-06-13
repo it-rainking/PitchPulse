@@ -22,6 +22,9 @@ async function getMatchData(teamA, teamB) {
     body: JSON.stringify({ model: 'llama-3.1-sonar-large-128k-online', messages: [{ role: 'user', content: prompt }], max_tokens: 1500 })
   });
   const data = await res.json();
+  console.log('PERPLEXITY STATUS:', res.status);
+  console.log('PERPLEXITY DATA:', JSON.stringify(data));
+  if (!data.choices || !data.choices[0]) throw new Error('Perplexity error: ' + JSON.stringify(data));
   const text = data.choices[0].message.content;
   console.log('PERPLEXITY RAW:', text);
   const jsonMatch = text.match(/\{[\s\S]*\}/);
