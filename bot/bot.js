@@ -116,3 +116,23 @@ bot.launch();
 console.log('🤖 PitchPulse Bot avviato');
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
+// TEST COMMAND
+bot.command('testanthropic', async (ctx) => {
+  ctx.reply('Testing Anthropic...');
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 10, messages: [{ role: 'user', content: 'Hi' }] })
+    });
+    const data = await res.json();
+    ctx.reply(`STATUS: ${res.status}\n${JSON.stringify(data).substring(0, 200)}`);
+  } catch (err) {
+    ctx.reply(`ERROR: ${err.message}`);
+  }
+});
