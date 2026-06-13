@@ -33,7 +33,11 @@ async function getMatchData(teamA, teamB) {
 }
 
 async function generateHTML(jsonData, moment) {
+  console.log('Calling Claude API...');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
   const res = await fetch('https://api.anthropic.com/v1/messages', {
+    signal: controller.signal,
     method: 'POST',
     headers: { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -43,6 +47,7 @@ async function generateHTML(jsonData, moment) {
       messages: [{ role: 'user', content: `${moment}\n${JSON.stringify(jsonData, null, 2)}` }]
     })
   });
+  clearTimeout(timeout);
   const data = await res.json();
   console.log('CLAUDE STATUS:', res.status);
   console.log('CLAUDE DATA:', JSON.stringify(data).substring(0, 500));
