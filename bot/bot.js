@@ -112,7 +112,7 @@ bot.command('prematch', async (ctx) => {
 });
 
 app.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
-bot.launch();
+bot.launch({ dropPendingUpdates: true });
 console.log('🤖 PitchPulse Bot avviato');
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
