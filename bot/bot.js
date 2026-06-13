@@ -115,8 +115,19 @@ bot.command('prematch', async (ctx) => {
   }
 });
 
-app.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
-bot.launch({ dropPendingUpdates: true });
+if (RAILWAY_PUBLIC_URL) {
+  // Webhook mode (production)
+  app.use(bot.webhookCallback('/webhook'));
+  app.listen(PORT, async () => {
+    console.log(`🚀 Server on port ${PORT}`);
+    await bot.telegram.setWebhook(`${RAILWAY_PUBLIC_URL}/webhook`);
+    console.log(`🔗 Webhook: ${RAILWAY_PUBLIC_URL}/webhook`);
+  });
+} else {
+  // Polling mode (local dev)
+  app.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
+  bot.launch({ dropPendingUpdates: true });
+}
 console.log('🤖 PitchPulse Bot avviato');
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
