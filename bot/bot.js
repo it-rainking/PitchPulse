@@ -43,6 +43,9 @@ async function generateHTML(jsonData, moment) {
     })
   });
   const data = await res.json();
+  console.log('CLAUDE STATUS:', res.status);
+  console.log('CLAUDE DATA:', JSON.stringify(data).substring(0, 500));
+  if (!data.content || !data.content[0]) throw new Error('Claude error: ' + JSON.stringify(data));
   return data.content[0].text;
 }
 
