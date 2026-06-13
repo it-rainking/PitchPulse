@@ -54,6 +54,7 @@ jobs:
             libxrandr2 \
             libxss1 \
             libxtst6 \
+            ffmpeg \
             --no-install-recommends
 
             # ── DEBUG TEMPORANEO ──────────────────────────────────
