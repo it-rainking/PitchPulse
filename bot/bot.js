@@ -98,7 +98,7 @@ bot.command('prematch', async (ctx) => {
     await ctx.reply('🎨 Generando HTML...');
     const html = await generateHTML(jsonData, 'prematch');
     await ctx.reply('🎬 Avviando render...');
-    const callbackUrl = RAILWAY_PUBLIC_URL ? `${RAILWAY_PUBLIC_URL}/callback` : '';
+    const callbackUrl = RAILWAY_PUBLIC_URL ? `${RAILWAY_PUBLIC_URL.startsWith("https") ? "" : "https://"}${RAILWAY_PUBLIC_URL}/callback` : "";
     const triggered = await triggerRender(html, projectName, callbackUrl);
     if (triggered) {
       await ctx.reply(`✅ Render avviato!\n📁 \`${projectName}\`\n⏱ ~3 minuti`, { parse_mode: 'Markdown' });
