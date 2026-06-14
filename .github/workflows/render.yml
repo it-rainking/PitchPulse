@@ -109,7 +109,7 @@ jobs:
             const content = fs.readFileSync(project + '/' + project + '.mp4');
 
             await dbx.filesUpload({
-              path: '/PitchPulse/' + project + '.mp4',
+              path: '/' + project + '.mp4',
               contents: content,
               mode: { '.tag': 'overwrite' },
               autorename: false
