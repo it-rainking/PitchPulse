@@ -137,7 +137,7 @@ jobs:
             const content = fs.readFileSync(project + '/' + project + '.mp4');
 
             await dbx.filesUpload({
-              path: '/PitchPulse/' + project + '.mp4',
+              path: '/' + project + '.mp4',
               contents: content,
               mode: { '.tag': 'overwrite' },
               autorename: false
@@ -156,7 +156,7 @@ jobs:
             -d '{
               "status": "ok",
               "project": "${{ github.event.inputs.project }}",
-              "dropbox": "/PitchPulse/${{ github.event.inputs.project }}.mp4"
+              "dropbox": "/${{ github.event.inputs.project }}.mp4"
             }'
 
       # ── 11. Notifica errore su Telegram ───────────────────
