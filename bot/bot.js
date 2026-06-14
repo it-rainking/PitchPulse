@@ -122,7 +122,7 @@ app.post('/callback', async (req, res) => {
 app.get('/health', (req, res) => res.json({ ok: true, bot: 'PitchPulse' }));
 
 bot.command('start', (ctx) => ctx.reply('👋 *PitchPulse Bot* attivo!\n\n⚽ `/prematch` Brazil vs Argentina\n🔴 `/live` Brazil vs Argentina\n🏆 `/postmatch` Brazil vs Argentina\n🔮 `/teaser` Brazil vs Argentina', { parse_mode: 'Markdown' }));
-bot.command('help', (ctx) => ctx.reply('📖 *Comandi:*\n\n⚽ `/prematch TeamA vs TeamB`\n🔴 `/live TeamA vs TeamB`\n🏆 `/postmatch TeamA vs TeamB`\n🔮 `/teaser TeamA vs TeamB`\n\n⏱ Render ~3 min | ☁️ Output: Dropbox /PitchPulse/', { parse_mode: 'Markdown' }));
+bot.command('help', (ctx) => ctx.reply('📖 *Comandi:*\n\n⚽ `/prematch TeamA vs TeamB`\n🔴 `/live TeamA vs TeamB`\n🏆 `/postmatch TeamA vs TeamB`\n🔮 `/teaser TeamA vs TeamB`\n\n⏱ Render ~3 min | ☁️ Output: Dropbox /', { parse_mode: 'Markdown' }));
 bot.command('prematch', (ctx) => handleMoment(ctx, 'prematch'));
 bot.command('live', (ctx) => handleMoment(ctx, 'live'));
 bot.command('postmatch', (ctx) => handleMoment(ctx, 'postmatch'));
