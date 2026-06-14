@@ -57,10 +57,13 @@ async function generateHTML(jsonData, moment) {
 }
 
 async function triggerRender(html, projectName, callbackUrl) {
+  // FIX: encode HTML in base64 per evitare syntax error bash con caratteri speciali (<, >, ', ")
+  const htmlBase64 = Buffer.from(html).toString('base64');
+
   const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/render.yml/dispatches`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ref: 'main', inputs: { html, project: projectName, callback_url: callbackUrl || '' } })
+    body: JSON.stringify({ ref: 'main', inputs: { html: htmlBase64, project: projectName, callback_url: callbackUrl || '' } })
   });
   return res.status === 204;
 }
