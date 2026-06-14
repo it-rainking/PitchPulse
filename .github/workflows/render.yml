@@ -73,10 +73,9 @@ jobs:
           mkdir -p audio fonts videos
 
           echo "=== AUDIO ==="
-          # Nota: PP-postmatch ha uno spazio nel nome su R2 (%20) — scaricato e salvato senza spazio
-          curl -fSL "$BASE/audio/PP-prematch.mp3"       -o audio/PP-prematch.mp3  && echo "OK PP-prematch.mp3"  || echo "MISS PP-prematch.mp3"
-          curl -fSL "$BASE/audio/PP-live.mp3"           -o audio/PP-live.mp3      && echo "OK PP-live.mp3"      || echo "MISS PP-live.mp3"
-          curl -fSL "$BASE/audio/PP-postmatch.mp3"       -o audio/PP-postmatch.mp3 && echo "OK PP-postmatch.mp3" || echo "MISS PP-postmatch.mp3"
+          curl -fSL "$BASE/audio/PP-prematch.mp3"  -o audio/PP-prematch.mp3  && echo "OK PP-prematch.mp3"  || echo "MISS PP-prematch.mp3"
+          curl -fSL "$BASE/audio/PP-live.mp3"      -o audio/PP-live.mp3      && echo "OK PP-live.mp3"      || echo "MISS PP-live.mp3"
+          curl -fSL "$BASE/audio/PP-postmatch.mp3" -o audio/PP-postmatch.mp3 && echo "OK PP-postmatch.mp3" || echo "MISS PP-postmatch.mp3"
 
           echo "=== FONTS ==="
           curl -fSL "$BASE/fonts/BebasNeue-Regular.woff2"    -o fonts/BebasNeue-Regular.woff2    && echo "OK BebasNeue-Regular.woff2"    || echo "MISS BebasNeue-Regular.woff2"
@@ -90,15 +89,27 @@ jobs:
           curl -fSL "$BASE/videos/Goal-3.mp4" -o videos/Goal-3.mp4 && echo "OK Goal-3.mp4" || echo "MISS Goal-3.mp4"
           curl -fSL "$BASE/videos/Goal-4.mp4" -o videos/Goal-4.mp4 && echo "OK Goal-4.mp4" || echo "MISS Goal-4.mp4"
 
-          echo "=== ASSET DISPONIBILI ==="
+          echo "=== TOTALE ==="
           ls -lh audio/ fonts/ videos/
 
       # ── 7. Crea cartella progetto e decodifica HTML ───────
       - name: Save HTML
         run: |
-          mkdir -p "${{ github.event.inputs.project }}"
-          echo "${{ github.event.inputs.html }}" | base64 -d > "${{ github.event.inputs.project }}/index.html"
-          echo "index.html scritto: $(wc -c < "${{ github.event.inputs.project }}/index.html") bytes"
+          PROJECT="${{ github.event.inputs.project }}"
+          mkdir -p "$PROJECT"
+          echo "${{ github.event.inputs.html }}" | base64 -d > "$PROJECT/index.html"
+          echo "index.html scritto: $(wc -c < "$PROJECT/index.html") bytes"
+
+          # CRITICO: copia audio, fonts e videos DENTRO la cartella progetto
+          # HyperFrames FileServer serve i file con path assoluti dalla root del progetto
+          # /audio/... → PROJECT/audio/...
+          # /fonts/... → PROJECT/fonts/...
+          cp -r audio  "$PROJECT/audio"
+          cp -r fonts  "$PROJECT/fonts"
+          cp -r videos "$PROJECT/videos"
+
+          echo "=== Struttura progetto ==="
+          ls -lh "$PROJECT/audio/" "$PROJECT/fonts/" "$PROJECT/videos/"
 
       # ── 8. Render con HyperFrames ─────────────────────────
       - name: Render MP4
@@ -143,7 +154,7 @@ jobs:
               autorename: false
             });
 
-            console.log('Upload completato: /PitchPulse/' + project + '.mp4');
+            console.log('Upload completato: /' + project + '.mp4');
           })();
           "
 
@@ -153,11 +164,7 @@ jobs:
         run: |
           curl -X POST "${{ github.event.inputs.callback_url }}" \
             -H "Content-Type: application/json" \
-            -d '{
-              "status": "ok",
-              "project": "${{ github.event.inputs.project }}",
-              "dropbox": "/${{ github.event.inputs.project }}.mp4"
-            }'
+            -d "{\"status\":\"ok\",\"project\":\"${{ github.event.inputs.project }}\",\"dropbox\":\"/${{ github.event.inputs.project }}.mp4\"}"
 
       # ── 11. Notifica errore su Telegram ───────────────────
       - name: Notify error on Telegram
