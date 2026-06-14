@@ -18,10 +18,10 @@ body { width:1080px; height:1920px; position:relative; overflow:hidden; flex-shr
 Meta tag: <meta name="viewport" content="width=1080, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 
 ### 2. FONTS — local only, NO Google Fonts:
-@font-face { font-family:'Bebas Neue'; src:url('../fonts/BebasNeue-Regular.woff2') format('woff2'); font-weight:400; font-display:block; }
-@font-face { font-family:'Barlow Condensed'; src:url('../fonts/BarlowCondensed-Bold.woff2') format('woff2'); font-weight:700; font-display:block; }
-@font-face { font-family:'Barlow'; src:url('../fonts/Barlow-Regular.woff2') format('woff2'); font-weight:400; font-display:block; }
-@font-face { font-family:'Barlow'; src:url('../fonts/Barlow-Medium.woff2') format('woff2'); font-weight:500; font-display:block; }
+@font-face { font-family:'Bebas Neue'; src:url('fonts/BebasNeue-Regular.woff2') format('woff2'); font-weight:400; font-display:block; }
+@font-face { font-family:'Barlow Condensed'; src:url('fonts/BarlowCondensed-Bold.woff2') format('woff2'); font-weight:700; font-display:block; }
+@font-face { font-family:'Barlow'; src:url('fonts/Barlow-Regular.woff2') format('woff2'); font-weight:400; font-display:block; }
+@font-face { font-family:'Barlow'; src:url('fonts/Barlow-Medium.woff2') format('woff2'); font-weight:500; font-display:block; }
 
 ### 3. COLOR PALETTE:
 --cyan:#00F5FF; --violet:#7B2FFF; --blue:#0A0E2A; --mid:#0D1B4B;
@@ -30,7 +30,7 @@ Meta tag: <meta name="viewport" content="width=1080, initial-scale=1.0, minimum-
 LIVE: --live:#FF3B3B replaces cyan | POSTMATCH: --gold replaces cyan
 
 ### 4. AUDIO — first child of #root:
-<audio id="bg-audio" src="../audio/PP-[moment].mp3" data-start="0" data-duration="15" data-volume="0.8" loop preload="auto"></audio>
+<audio id="bg-audio" src="audio/PP-[moment].mp3" data-start="0" data-duration="15" data-volume="0.8" loop preload="auto"></audio>
 prematch/teaser → PP-prematch.mp3 | live → PP-live.mp3 | postmatch → PP-postmatch.mp3
 
 ### 5. ROOT ELEMENT:
@@ -40,7 +40,7 @@ CSS: #root { position:absolute; inset:0; width:1080px; height:1920px; }
 ### 6. DOM STRUCTURE — mandatory:
 <body>
   <div id="root" data-composition-id="pitchpulse-[moment]" data-width="1080" data-height="1920" data-fps="30" data-duration="15" data-start="0">
-    <audio id="bg-audio" src="../audio/PP-[moment].mp3" data-start="0" data-duration="15" data-volume="0.8" loop preload="auto"></audio>
+    <audio id="bg-audio" src="audio/PP-[moment].mp3" data-start="0" data-duration="15" data-volume="0.8" loop preload="auto"></audio>
     <div class="bg-layer-wrap">
       <div class="bg-grid"></div><div class="bg-glow"></div><div class="bg-noise"></div>
       <div class="field-lines"></div><div class="bg-watermark"></div>
