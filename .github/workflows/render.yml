@@ -70,21 +70,28 @@ jobs:
         run: |
           BASE="https://pub-3014d0a8aa084b139613f942b5551b02.r2.dev"
 
-          mkdir -p audio fonts
+          mkdir -p audio fonts videos
 
-          echo "Downloading audio..."
-          curl -fSL "$BASE/audio/PP-prematch.mp3"  -o audio/PP-prematch.mp3
-          curl -fSL "$BASE/audio/PP-live.mp3"      -o audio/PP-live.mp3
-          curl -fSL "$BASE/audio/PP-postmatch.mp3" -o audio/PP-postmatch.mp3
+          echo "=== AUDIO ==="
+          # Nota: PP-postmatch ha uno spazio nel nome su R2 (%20) — scaricato e salvato senza spazio
+          curl -fSL "$BASE/audio/PP-prematch.mp3"       -o audio/PP-prematch.mp3  && echo "OK PP-prematch.mp3"  || echo "MISS PP-prematch.mp3"
+          curl -fSL "$BASE/audio/PP-live.mp3"           -o audio/PP-live.mp3      && echo "OK PP-live.mp3"      || echo "MISS PP-live.mp3"
+          curl -fSL "$BASE/audio/PP-postmatch.mp3"       -o audio/PP-postmatch.mp3 && echo "OK PP-postmatch.mp3" || echo "MISS PP-postmatch.mp3"
 
-          echo "Downloading fonts..."
-          curl -fSL "$BASE/fonts/BebasNeue-Regular.woff2"    -o fonts/BebasNeue-Regular.woff2
-          curl -fSL "$BASE/fonts/BarlowCondensed-Bold.woff2" -o fonts/BarlowCondensed-Bold.woff2
-          curl -fSL "$BASE/fonts/Barlow-Regular.woff2"       -o fonts/Barlow-Regular.woff2
-          curl -fSL "$BASE/fonts/Barlow-Medium.woff2"        -o fonts/Barlow-Medium.woff2
+          echo "=== FONTS ==="
+          curl -fSL "$BASE/fonts/BebasNeue-Regular.woff2"    -o fonts/BebasNeue-Regular.woff2    && echo "OK BebasNeue-Regular.woff2"    || echo "MISS BebasNeue-Regular.woff2"
+          curl -fSL "$BASE/fonts/BarlowCondensed-Bold.woff2" -o fonts/BarlowCondensed-Bold.woff2 && echo "OK BarlowCondensed-Bold.woff2" || echo "MISS BarlowCondensed-Bold.woff2"
+          curl -fSL "$BASE/fonts/Barlow-Regular.woff2"       -o fonts/Barlow-Regular.woff2       && echo "OK Barlow-Regular.woff2"       || echo "MISS Barlow-Regular.woff2"
+          curl -fSL "$BASE/fonts/Barlow-Medium.woff2"        -o fonts/Barlow-Medium.woff2        && echo "OK Barlow-Medium.woff2"        || echo "MISS Barlow-Medium.woff2"
 
-          echo "Asset scaricati:"
-          ls -lh audio/ fonts/
+          echo "=== VIDEOS ==="
+          curl -fSL "$BASE/videos/Goal-1.mp4" -o videos/Goal-1.mp4 && echo "OK Goal-1.mp4" || echo "MISS Goal-1.mp4"
+          curl -fSL "$BASE/videos/Goal-2.mp4" -o videos/Goal-2.mp4 && echo "OK Goal-2.mp4" || echo "MISS Goal-2.mp4"
+          curl -fSL "$BASE/videos/Goal-3.mp4" -o videos/Goal-3.mp4 && echo "OK Goal-3.mp4" || echo "MISS Goal-3.mp4"
+          curl -fSL "$BASE/videos/Goal-4.mp4" -o videos/Goal-4.mp4 && echo "OK Goal-4.mp4" || echo "MISS Goal-4.mp4"
+
+          echo "=== ASSET DISPONIBILI ==="
+          ls -lh audio/ fonts/ videos/
 
       # ── 7. Crea cartella progetto e decodifica HTML ───────
       - name: Save HTML
