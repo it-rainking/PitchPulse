@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       html:
-        description: 'HTML content to render'
+        description: 'HTML content (base64 encoded)'
         required: true
         type: string
       project:
@@ -57,7 +57,6 @@ jobs:
             ffmpeg \
             --no-install-recommends
 
-        
       # ── 4. Installa HyperFrames ───────────────────────────
       - name: Install HyperFrames
         run: npm install -g hyperframes
@@ -66,20 +65,21 @@ jobs:
       - name: Install project dependencies
         run: npm install
 
-      # ── 6. Crea cartella progetto e salva HTML ────────────
+      # ── 6. Crea cartella progetto e decodifica HTML ───────
       - name: Save HTML
         run: |
-          mkdir -p ${{ github.event.inputs.project }}
-          echo '${{ github.event.inputs.html }}' > ${{ github.event.inputs.project }}/index.html
+          mkdir -p "${{ github.event.inputs.project }}"
+          echo "${{ github.event.inputs.html }}" | base64 -d > "${{ github.event.inputs.project }}/index.html"
+          echo "✅ index.html scritto ($(wc -c < "${{ github.event.inputs.project }}/index.html") bytes)"
 
       # ── 7. Render con HyperFrames ─────────────────────────
       - name: Render MP4
         env:
           PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
         run: |
-          cd ${{ github.event.inputs.project }}
+          cd "${{ github.event.inputs.project }}"
           npx hyperframes render . \
-            --output ${{ github.event.inputs.project }}.mp4 \
+            --output "${{ github.event.inputs.project }}.mp4" \
             --format mp4
 
       # ── 8. Upload su Dropbox ──────────────────────────────
