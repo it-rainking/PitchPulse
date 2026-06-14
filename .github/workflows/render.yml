@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      # ── 1. Checkout repo (fonts + audio già qui) ──────────
+      # ── 1. Checkout repo ──────────────────────────────────
       - name: Checkout repo
         uses: actions/checkout@v4
 
@@ -32,8 +32,8 @@ jobs:
         with:
           node-version: '22'
 
-      # ── 3. Installa dipendenze sistema per Chromium ───────
-      - name: Install Chromium dependencies
+      # ── 3. Installa dipendenze sistema ────────────────────
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -65,14 +65,35 @@ jobs:
       - name: Install project dependencies
         run: npm install
 
-      # ── 6. Crea cartella progetto e decodifica HTML ───────
+      # ── 6. Scarica asset da Cloudflare R2 ────────────────
+      - name: Download assets from Cloudflare R2
+        run: |
+          BASE="https://pub-3014d0a8aa084b139613f942b5551b02.r2.dev"
+
+          mkdir -p audio fonts
+
+          echo "Downloading audio..."
+          curl -fSL "$BASE/audio/PP-prematch.mp3"  -o audio/PP-prematch.mp3
+          curl -fSL "$BASE/audio/PP-live.mp3"      -o audio/PP-live.mp3
+          curl -fSL "$BASE/audio/PP-postmatch.mp3" -o audio/PP-postmatch.mp3
+
+          echo "Downloading fonts..."
+          curl -fSL "$BASE/fonts/BebasNeue-Regular.woff2"    -o fonts/BebasNeue-Regular.woff2
+          curl -fSL "$BASE/fonts/BarlowCondensed-Bold.woff2" -o fonts/BarlowCondensed-Bold.woff2
+          curl -fSL "$BASE/fonts/Barlow-Regular.woff2"       -o fonts/Barlow-Regular.woff2
+          curl -fSL "$BASE/fonts/Barlow-Medium.woff2"        -o fonts/Barlow-Medium.woff2
+
+          echo "Asset scaricati:"
+          ls -lh audio/ fonts/
+
+      # ── 7. Crea cartella progetto e decodifica HTML ───────
       - name: Save HTML
         run: |
           mkdir -p "${{ github.event.inputs.project }}"
           echo "${{ github.event.inputs.html }}" | base64 -d > "${{ github.event.inputs.project }}/index.html"
-          echo "✅ index.html scritto ($(wc -c < "${{ github.event.inputs.project }}/index.html") bytes)"
+          echo "index.html scritto: $(wc -c < "${{ github.event.inputs.project }}/index.html") bytes"
 
-      # ── 7. Render con HyperFrames ─────────────────────────
+      # ── 8. Render con HyperFrames ─────────────────────────
       - name: Render MP4
         env:
           PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
@@ -82,7 +103,7 @@ jobs:
             --output "${{ github.event.inputs.project }}.mp4" \
             --format mp4
 
-      # ── 8. Upload su Dropbox ──────────────────────────────
+      # ── 9. Upload su Dropbox ──────────────────────────────
       - name: Upload to Dropbox
         env:
           DBX_APP_KEY: ${{ secrets.DBX_APP_KEY }}
@@ -109,17 +130,17 @@ jobs:
             const content = fs.readFileSync(project + '/' + project + '.mp4');
 
             await dbx.filesUpload({
-              path: '/' + project + '.mp4',
+              path: '/PitchPulse/' + project + '.mp4',
               contents: content,
               mode: { '.tag': 'overwrite' },
               autorename: false
             });
 
-            console.log('✅ Upload completato: /PitchPulse/' + project + '.mp4');
+            console.log('Upload completato: /PitchPulse/' + project + '.mp4');
           })();
           "
 
-      # ── 9. Notifica Railway (callback) ────────────────────
+      # ── 10. Notifica Railway (callback) ───────────────────
       - name: Notify Railway
         if: ${{ github.event.inputs.callback_url != '' }}
         run: |
@@ -131,7 +152,7 @@ jobs:
               "dropbox": "/PitchPulse/${{ github.event.inputs.project }}.mp4"
             }'
 
-      # ── 10. Notifica errore su Telegram ───────────────────
+      # ── 11. Notifica errore su Telegram ───────────────────
       - name: Notify error on Telegram
         if: failure()
         env:
@@ -141,4 +162,4 @@ jobs:
           curl -s -X POST \
             "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
             -d chat_id="${TELEGRAM_CHAT_ID}" \
-            -d text="❌ Render fallito: ${{ github.event.inputs.project }}"
+            -d text="Render fallito: ${{ github.event.inputs.project }}"
