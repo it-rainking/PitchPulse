@@ -78,7 +78,7 @@ app.post('/callback', async (req, res) => {
 app.get('/health', (req, res) => res.json({ ok: true }));
 
 bot.command('start', (ctx) => {
-  ctx.reply('👋 PitchPulse Bot attivo!\n\n/prematch Brazil vs Argentina');
+  ctx.reply('👋 PitchPulse Bot attivo!');
 });
 
 bot.command('prematch', async (ctx) => {
