@@ -78,10 +78,10 @@ jobs:
           curl -fSL "$BASE/audio/PP-postmatch.mp3" -o audio/PP-postmatch.mp3 && echo "OK PP-postmatch.mp3" || echo "MISS PP-postmatch.mp3"
 
           echo "=== FONTS ==="
-          curl -fSL "$BASE/fonts/BebasNeue-Regular.woff2"    -o fonts/BebasNeue-Regular.woff2    && echo "OK BebasNeue-Regular.woff2"    || echo "MISS BebasNeue-Regular.woff2"
-          curl -fSL "$BASE/fonts/BarlowCondensed-Bold.woff2" -o fonts/BarlowCondensed-Bold.woff2 && echo "OK BarlowCondensed-Bold.woff2" || echo "MISS BarlowCondensed-Bold.woff2"
-          curl -fSL "$BASE/fonts/Barlow-Regular.woff2"       -o fonts/Barlow-Regular.woff2       && echo "OK Barlow-Regular.woff2"       || echo "MISS Barlow-Regular.woff2"
-          curl -fSL "$BASE/fonts/Barlow-Medium.woff2"        -o fonts/Barlow-Medium.woff2        && echo "OK Barlow-Medium.woff2"        || echo "MISS Barlow-Medium.woff2"
+          curl -fSL "$BASE/fonts/BebasNeue-Regular.ttf"    -o fonts/BebasNeue-Regular.ttf    && echo "OK BebasNeue-Regular.ttf"    || echo "MISS BebasNeue-Regular.ttf"
+          curl -fSL "$BASE/fonts/BarlowCondensed-Bold.ttf" -o fonts/BarlowCondensed-Bold.ttf && echo "OK BarlowCondensed-Bold.ttf" || echo "MISS BarlowCondensed-Bold.ttf"
+          curl -fSL "$BASE/fonts/Barlow-Regular.ttf"       -o fonts/Barlow-Regular.ttf       && echo "OK Barlow-Regular.ttf"       || echo "MISS Barlow-Regular.ttf"
+          curl -fSL "$BASE/fonts/Barlow-Medium.ttf"        -o fonts/Barlow-Medium.ttf        && echo "OK Barlow-Medium.ttf"        || echo "MISS Barlow-Medium.ttf"
 
           echo "=== VIDEOS ==="
           curl -fSL "$BASE/videos/Goal-1.mp4" -o videos/Goal-1.mp4 && echo "OK Goal-1.mp4" || echo "MISS Goal-1.mp4"
