@@ -18,10 +18,10 @@ body { width:1080px; height:1920px; position:relative; overflow:hidden; flex-shr
 Meta tag: <meta name="viewport" content="width=1080, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 
 ### 2. FONTS — local only, NO Google Fonts:
-@font-face { font-family:'Bebas Neue'; src:url('/fonts/BebasNeue-Regular.woff2') format('woff2'); font-weight:400; font-display:block; }
-@font-face { font-family:'Barlow Condensed'; src:url('/fonts/BarlowCondensed-Bold.woff2') format('woff2'); font-weight:700; font-display:block; }
-@font-face { font-family:'Barlow'; src:url('/fonts/Barlow-Regular.woff2') format('woff2'); font-weight:400; font-display:block; }
-@font-face { font-family:'Barlow'; src:url('/fonts/Barlow-Medium.woff2') format('woff2'); font-weight:500; font-display:block; }
+@font-face { font-family:'Bebas Neue'; src:url('/fonts/BebasNeue-Regular.ttf') format('woff2'); font-weight:400; font-display:block; }
+@font-face { font-family:'Barlow Condensed'; src:url('/fonts/BarlowCondensed-Bold.woff2') format('ttf'); font-weight:700; font-display:block; }
+@font-face { font-family:'Barlow'; src:url('/fonts/Barlow-Regular.ttf') format('woff2'); font-weight:400; font-display:block; }
+@font-face { font-family:'Barlow'; src:url('/fonts/Barlow-Medium.ttf') format('woff2'); font-weight:500; font-display:block; }
 
 ### 3. COLOR PALETTE:
 --cyan:#00F5FF; --violet:#7B2FFF; --blue:#0A0E2A; --mid:#0D1B4B;
