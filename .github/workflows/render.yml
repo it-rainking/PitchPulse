@@ -11,6 +11,18 @@ on:
         description: 'Project name (e.g. prematch-BRAvARG)'
         required: true
         type: string
+      post_text:
+        description: 'Post copy text (base64 encoded)'
+        required: false
+        type: string
+      prompt_perplexity:
+        description: 'Perplexity prompt (base64 encoded)'
+        required: false
+        type: string
+      prompt_claude:
+        description: 'Claude prompt/JSON payload (base64 encoded)'
+        required: false
+        type: string
       callback_url:
         description: 'Railway webhook URL to notify when done'
         required: false
@@ -93,35 +105,53 @@ jobs:
           ls -lh audio/ fonts/ videos/
 
       # ── 7. Crea cartella progetto e decodifica HTML ───────
-      - name: Save HTML
+      - name: Save HTML and text files
         run: |
           PROJECT="${{ github.event.inputs.project }}"
           mkdir -p "$PROJECT"
+
+          # HTML
           echo "${{ github.event.inputs.html }}" | base64 -d > "$PROJECT/index.html"
           echo "index.html scritto: $(wc -c < "$PROJECT/index.html") bytes"
 
+          # Post copy text (opzionale)
+          if [ -n "${{ github.event.inputs.post_text }}" ]; then
+            echo "${{ github.event.inputs.post_text }}" | base64 -d > "$PROJECT/post.txt"
+            echo "post.txt scritto: $(wc -c < "$PROJECT/post.txt") bytes"
+          fi
+
+          # Prompt Perplexity (opzionale)
+          if [ -n "${{ github.event.inputs.prompt_perplexity }}" ]; then
+            echo "${{ github.event.inputs.prompt_perplexity }}" | base64 -d > "$PROJECT/prompt-perplexity.txt"
+            echo "prompt-perplexity.txt scritto"
+          fi
+
+          # Prompt Claude / JSON payload (opzionale)
+          if [ -n "${{ github.event.inputs.prompt_claude }}" ]; then
+            echo "${{ github.event.inputs.prompt_claude }}" | base64 -d > "$PROJECT/prompt-claude.txt"
+            echo "prompt-claude.txt scritto"
+          fi
+
           # CRITICO: copia audio, fonts e videos DENTRO la cartella progetto
-          # HyperFrames FileServer serve i file con path assoluti dalla root del progetto
-          # /audio/... → PROJECT/audio/...
-          # /fonts/... → PROJECT/fonts/...
           cp -r audio  "$PROJECT/audio"
           cp -r fonts  "$PROJECT/fonts"
           cp -r videos "$PROJECT/videos"
 
           echo "=== Struttura progetto ==="
-          ls -lh "$PROJECT/audio/" "$PROJECT/fonts/" "$PROJECT/videos/"
+          ls -lh "$PROJECT/"
 
       # ── 8. Render con HyperFrames ─────────────────────────
       - name: Render MP4
         env:
           PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
         run: |
-          cd "${{ github.event.inputs.project }}"
+          PROJECT="${{ github.event.inputs.project }}"
+          cd "$PROJECT"
           npx hyperframes render . \
-            --output "${{ github.event.inputs.project }}.mp4" \
+            --output "${PROJECT}.mp4" \
             --format mp4
 
-      # ── 9. Upload su Dropbox ──────────────────────────────
+      # ── 9. Upload su Dropbox (tutti i file nella stessa cartella) ──
       - name: Upload to Dropbox
         env:
           DBX_APP_KEY: ${{ secrets.DBX_APP_KEY }}
@@ -140,31 +170,66 @@ jobs:
               refreshToken: process.env.DBX_REFRESH_TOKEN,
               fetch
             });
-
             await auth.refreshAccessToken();
-
             const dbx = new Dropbox({ auth, fetch });
+
             const project = '${{ github.event.inputs.project }}';
-            const content = fs.readFileSync(project + '/' + project + '.mp4');
+            const dbxFolder = '/' + project;
 
-            await dbx.filesUpload({
-              path: '/' + project + '.mp4',
-              contents: content,
-              mode: { '.tag': 'overwrite' },
-              autorename: false
-            });
+            // Funzione helper upload
+            async function uploadFile(localPath, dbxPath) {
+              if (!fs.existsSync(localPath)) {
+                console.log('SKIP (non trovato):', localPath);
+                return null;
+              }
+              const content = fs.readFileSync(localPath);
+              await dbx.filesUpload({
+                path: dbxPath,
+                contents: content,
+                mode: { '.tag': 'overwrite' },
+                autorename: false
+              });
+              console.log('OK:', dbxPath);
+              return dbxPath;
+            }
 
-            console.log('Upload completato: /' + project + '.mp4');
-          })();
+            // 1. MP4 — nome senza pitchpulse-
+            const mp4Path = await uploadFile(
+              project + '/' + project + '.mp4',
+              dbxFolder + '/' + project + '.mp4'
+            );
+
+            // 2. Post copy text
+            await uploadFile(
+              project + '/post.txt',
+              dbxFolder + '/post.txt'
+            );
+
+            // 3. Prompt Perplexity
+            await uploadFile(
+              project + '/prompt-perplexity.txt',
+              dbxFolder + '/prompt-perplexity.txt'
+            );
+
+            // 4. Prompt Claude
+            await uploadFile(
+              project + '/prompt-claude.txt',
+              dbxFolder + '/prompt-claude.txt'
+            );
+
+            console.log('Upload completato in:', dbxFolder);
+
+          })().catch(e => { console.error(e); process.exit(1); });
           "
 
       # ── 10. Notifica Railway (callback) ───────────────────
       - name: Notify Railway
         if: ${{ github.event.inputs.callback_url != '' }}
         run: |
+          PROJECT="${{ github.event.inputs.project }}"
           curl -X POST "${{ github.event.inputs.callback_url }}" \
             -H "Content-Type: application/json" \
-            -d "{\"status\":\"ok\",\"project\":\"${{ github.event.inputs.project }}\",\"dropbox\":\"/${{ github.event.inputs.project }}.mp4\"}"
+            -d "{\"status\":\"ok\",\"project\":\"${PROJECT}\",\"dropbox\":\"/${PROJECT}/\"}"
 
       # ── 11. Notifica errore su Telegram ───────────────────
       - name: Notify error on Telegram
