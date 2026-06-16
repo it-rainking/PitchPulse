@@ -17,6 +17,40 @@ const PORT = process.env.PORT || 3000;
 
 const SYSTEM_PROMPT = fs.readFileSync(path.join(__dirname, 'prompts/system-html-agent.txt'), 'utf8');
 
+// ── ASSET REGISTRY ────────────────────────────────────────
+// Modifica qui per aggiungere/cambiare audio, video e path
+const ASSETS = {
+  paths: {
+    audio: '../audio/',
+    fonts: '../fonts/',
+    video: '../videos/'
+  },
+  audio: {
+    prematch:   'PP-prematch.mp3',
+    live:       'PP-live.mp3',
+    postmatch:  'PP-postmatch.mp3',
+    teaser:     'PP-prematch.mp3',
+    curiosity:  'PP-prematch.mp3',
+    highlights: 'PP-postmatch.mp3'
+  },
+  video: [
+    'Goal-1.mp4',
+    'Goal-2.mp4',
+    'Goal-3.mp4',
+    'Goal-4.mp4'
+  ]
+};
+
+// ── Helper: path asset completi ───────────────────────────
+function getAssetPaths(moment) {
+  const audioFile = ASSETS.audio[moment] || ASSETS.audio.prematch;
+  const videoFile = ASSETS.video[Math.floor(Math.random() * ASSETS.video.length)];
+  return {
+    audio_src: ASSETS.paths.audio + audioFile,
+    video_src: ASSETS.paths.video + videoFile
+  };
+}
+
 // ── Helper: data corrente formattata ──────────────────────
 function todayISO() {
   return new Date().toISOString().split('T')[0];
@@ -39,13 +73,13 @@ Tone: high energy, punchy, data-first, never neutral.
 Return ONLY this exact format, no extra text:
 
 === PITCHPULSE - ${momentLabel} COPY ===
-Match: ${teamA} vs ${teamB}
+Match: [match.team_a.name] vs [match.team_b.name]
 Phase: [match.phase] - [meta.tournament]
 Venue: [match.venue], [match.city]
-Kickoff: [match.kickoff_local if available]
+Kickoff: format as "HH:MM TZ | HH:MM UTC | DD Month YYYY" using match.kickoff_local and match.kickoff_utc
 
 --- TIKTOK / REELS CAPTION ---
-[caption_hook from JSON - max 15 words, punchy]
+[caption_hook from JSON - STRICTLY max 12 words, punchy, data-first]
 
 [2-3 lines expanding on key stat or cold_fact. Max 40 words. Data-first.]
 
@@ -81,7 +115,6 @@ ${JSON.stringify(jsonData, null, 2)}`;
     return data.content[0].text.trim();
   } catch (err) {
     clearTimeout(timeout);
-    // Fallback minimale se la chiamata copy fallisce
     const hashtags = Object.values(jsonData.hashtags || {}).join(' ');
     return [
       `=== PITCHPULSE - ${momentLabel} COPY ===`,
@@ -93,6 +126,190 @@ ${JSON.stringify(jsonData, null, 2)}`;
       `--- HASHTAGS ---`,
       hashtags
     ].join('\n');
+  }
+}
+
+// ── Perplexity: ricerca curiosità WC2026 ─────────────────
+async function getCuriosityData(topic) {
+  const today = todayISO();
+  const assets = getAssetPaths('curiosity');
+
+  const schema = {
+    meta: {
+      moment:     'curiosity',
+      brand:      'PitchPulse',
+      version:    '2.0',
+      tournament: 'FIFA World Cup 2026',
+      audio_src:  assets.audio_src,
+      video_src:  assets.video_src
+    },
+    curiosity: {
+      topic:    'FILL_TOPIC_TITLE',
+      category: 'FILL_ONE_OF: RECORD / STORIA / NUMERO / LEGGENDA / STATISTICA'
+    },
+    headline: {
+      eyebrow:     'FILL_SHORT_LABEL',
+      value:       'FILL_IMPRESSIVE_NUMBER',
+      unit:        'FILL_UNIT_OR_NULL',
+      description: 'FILL_COMPELLING_CONTEXT_MAX_3_LINES'
+    },
+    facts: [
+      { emoji: 'FILL_EMOJI', label: 'FILL_SHORT_LABEL', text: 'FILL_SURPRISING_FACT_ONE_SENTENCE' },
+      { emoji: 'FILL_EMOJI', label: 'FILL_SHORT_LABEL', text: 'FILL_SURPRISING_FACT_ONE_SENTENCE' },
+      { emoji: 'FILL_EMOJI', label: 'FILL_SHORT_LABEL', text: 'FILL_SURPRISING_FACT_ONE_SENTENCE' }
+    ],
+    cold_fact: {
+      emoji: 'FILL_EMOJI',
+      label: 'DID YOU KNOW',
+      text:  'FILL_MOST_SHOCKING_FACT_ONE_SENTENCE'
+    },
+    caption_hook: 'FILL_STRICTLY_MAX_12_WORDS_PUNCHY_DATA_FIRST',
+    hashtags: {
+      topic:            `#${topic.replace(/\s/g, '')}`,
+      tournament:       '#WorldCup2026 #WC2026',
+      brand_pitchpulse: '#PitchPulse',
+      generic:          '#Football #Soccer #FIFA #WC2026facts'
+    }
+  };
+
+  const prompt = [
+    `FIFA World Cup 2026 - curiosity card about: "${topic}".`,
+    `Today is ${today}. Research REAL verified facts and records from the web.`,
+    `Fill ALL fields marked FILL_* with accurate, surprising, data-driven content.`,
+    `Priority: find the most shocking/impressive number or stat about this topic.`,
+    `facts[]: three distinct surprising facts, each on a different angle. No repetition.`,
+    `cold_fact: the single most mind-blowing fact you found.`,
+    `caption_hook: STRICTLY max 12 words, punchy, data-first, TikTok tone. Count words before submitting.`,
+    `Do NOT append sources, citations or footnotes after the JSON.`,
+    `Return ONLY valid JSON - no markdown, no code fences, no explanation, no text before or after.`,
+    `Use this exact schema:`,
+    JSON.stringify(schema, null, 2)
+  ].join('\n');
+
+  const res = await fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'sonar-pro',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 2000
+    })
+  });
+
+  const data = await res.json();
+  if (!data.choices || !data.choices[0]) {
+    throw new Error('Perplexity error: ' + JSON.stringify(data));
+  }
+
+  let text = data.choices[0].message.content;
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('Nessun JSON trovato (curiosity). Risposta: ' + text.substring(0, 200));
+  }
+
+  try {
+    return { data: JSON.parse(jsonMatch[0]), promptUsed: prompt };
+  } catch (parseErr) {
+    console.error('[Perplexity/curiosity] JSON non valido:', jsonMatch[0].substring(0, 300));
+    throw new Error('JSON Perplexity curiosity non parsabile: ' + parseErr.message);
+  }
+}
+
+// ── Handler curiosity ─────────────────────────────────────
+async function handleCuriosity(ctx) {
+  const topic = ctx.message.text.replace('/curiosity', '').trim();
+  if (!topic) return ctx.reply('Formato: /curiosity World Cup 2026\nEsempi: /curiosity Brazil | /curiosity Group A | /curiosity Mbappe');
+
+  const slug = topic.replace(/\s/g, '').substring(0, 12).toUpperCase();
+  const projectName = `curiosity-${slug}-${Date.now()}`;
+
+  await ctx.reply(`🤯 *CURIOSITY* — ${topic}\nAvvio pipeline...`, { parse_mode: 'Markdown' });
+
+  try {
+    await ctx.reply('🔍 Ricercando curiosità...');
+    const { data: jsonData, promptUsed } = await getCuriosityData(topic);
+
+    await ctx.reply('🎨 Generando HTML e copy...');
+
+    const copyPrompt = `You are a social media copywriter for PitchPulse, a football analytics brand targeting 18-28 on TikTok and Instagram Reels.
+
+Write a social copy block for this CURIOSITY card about: "${topic}". Use ONLY data from the JSON below.
+Tone: mind-blowing, punchy, data-first, never neutral.
+
+Return ONLY this exact format, no extra text:
+
+=== PITCHPULSE - CURIOSITY COPY ===
+Topic: ${topic}
+Category: [curiosity.category]
+
+--- TIKTOK / REELS CAPTION ---
+[caption_hook from JSON - STRICTLY max 12 words]
+
+[2-3 lines expanding on the most shocking fact. Max 40 words. Data-first.]
+
+[1 CTA - e.g. "Follow @PitchPulse for more WC2026 facts"]
+
+--- HASHTAGS ---
+[hashtags.topic] [hashtags.tournament] [hashtags.brand_pitchpulse] [hashtags.generic]
+#curiosity #footballfacts #WC2026facts
+
+JSON:
+${JSON.stringify(jsonData, null, 2)}`;
+
+    const [{ html, claudePayload }, postText] = await Promise.all([
+      generateHTML(jsonData, 'curiosity'),
+      (async () => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000);
+        try {
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+              'x-api-key': ANTHROPIC_API_KEY,
+              'anthropic-version': '2023-06-01',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: 'claude-haiku-4-5',
+              max_tokens: 1000,
+              messages: [{ role: 'user', content: copyPrompt }]
+            })
+          });
+          clearTimeout(timeout);
+          const data = await res.json();
+          if (!data.content || !data.content[0]) throw new Error('Claude copy error');
+          return data.content[0].text.trim();
+        } catch (err) {
+          clearTimeout(timeout);
+          return `=== PITCHPULSE - CURIOSITY COPY ===\nTopic: ${topic}\n\n--- CAPTION ---\n${jsonData.caption_hook || ''}\n\n--- HASHTAGS ---\n${Object.values(jsonData.hashtags || {}).join(' ')}`;
+        }
+      })()
+    ]);
+
+    await ctx.reply('🎬 Avviando render...');
+    const base = RAILWAY_PUBLIC_URL || '';
+    const callbackUrl = base ? `${base.startsWith('https') ? '' : 'https://'}${base}/callback` : '';
+
+    const triggered = await triggerRender(html, projectName, callbackUrl, postText, promptUsed, claudePayload);
+
+    if (triggered) {
+      await ctx.reply(`✅ *Render avviato!*\n📁 \`${projectName}\`\nPronto in circa 3 minuti`, { parse_mode: 'Markdown' });
+    } else {
+      await ctx.reply('❌ Errore GitHub Actions');
+    }
+  } catch (err) {
+    console.error('[curiosity] Error:', err.message);
+    if (err.name === 'AbortError' || err.message.includes('aborted')) {
+      await ctx.reply('⏱ Timeout. Riprova con /curiosity');
+    } else {
+      await ctx.reply(`❌ Errore: ${err.message}`);
+    }
   }
 }
 
@@ -109,17 +326,20 @@ async function getMatchData(teamA, teamB, moment) {
   const codeB     = teamB.replace(/\s/g, '').substring(0, 3).toUpperCase();
   const hashMatch = `#${teamA.replace(/\s/g, '')}vs${teamB.replace(/\s/g, '')}`;
   const today     = todayISO();
+  const assets    = getAssetPaths(moment);
 
   const schema = {
     meta: {
       moment,
-      brand: 'PitchPulse',
-      version: '2.0',
-      tournament: 'FIFA World Cup 2026'
+      brand:      'PitchPulse',
+      version:    '2.0',
+      tournament: 'FIFA World Cup 2026',
+      audio_src:  assets.audio_src,
+      video_src:  assets.video_src
     },
     match: {
-      team_a:        { name: teamA, code: codeA, flag_emoji: 'FILL_EMOJI' },
-      team_b:        { name: teamB, code: codeB, flag_emoji: 'FILL_EMOJI' },
+      team_a:        { name: 'FILL_FULL_NAME', code: codeA, flag_emoji: 'FILL_EMOJI' },
+      team_b:        { name: 'FILL_FULL_NAME', code: codeB, flag_emoji: 'FILL_EMOJI' },
       phase:         'FILL_REAL_PHASE',
       matchday:      'FILL_MD1_OR_MD2_OR_MD3',
       kickoff_utc:   'FILL_REAL_KICKOFF_UTC',
@@ -139,11 +359,11 @@ async function getMatchData(teamA, teamB, moment) {
       { label: 'FILL', value: 'FILL', context: 'FILL' }
     ],
     H2H: {
-      team_a_wins:    0,
-      draws:          0,
-      team_b_wins:    0,
-      last_meeting:   'FILL_OR_NULL',
-      total_meetings: 0
+      team_a_wins:    'FILL_REAL_OR_0',
+      draws:          'FILL_REAL_OR_0',
+      team_b_wins:    'FILL_REAL_OR_0',
+      last_meeting:   'FILL_DATE_SCORE_COMPETITION_OR_NULL',
+      total_meetings: 'FILL_REAL_OR_0'
     },
     cold_fact: {
       emoji: 'FILL_EMOJI',
@@ -162,7 +382,7 @@ async function getMatchData(teamA, teamB, moment) {
     score_a:       null,
     score_b:       null,
     minute:        null,
-    caption_hook:  'FILL_MAX_12_WORDS_PUNCHY_DATA_FIRST',
+    caption_hook:  'FILL_STRICTLY_MAX_12_WORDS_PUNCHY_DATA_FIRST',
     hashtags: {
       match:            hashMatch,
       tournament:       '#WorldCup2026 #WC2026',
@@ -175,7 +395,9 @@ async function getMatchData(teamA, teamB, moment) {
     `FIFA World Cup 2026 - ${momentLabel}: ${teamA} vs ${teamB}.`,
     `Today is ${today}. Research REAL verified data from the web.`,
     `Fill ALL fields marked FILL_* with accurate real data.`,
-    `caption_hook: max 12 words, punchy, data-first, TikTok tone. No typos.`,
+    `match.team_a.name and match.team_b.name must be the full official country name (e.g. "France", "Senegal"), not the code.`,
+    `H2H: research all historical meetings between these two teams. If no meetings exist set values to 0 and last_meeting to null.`,
+    `caption_hook: STRICTLY max 12 words, punchy, data-first, TikTok tone. Count words before submitting.`,
     `Do NOT append sources, citations or footnotes after the JSON.`,
     `Return ONLY valid JSON - no markdown, no code fences, no explanation, no text before or after.`,
     `Use this exact schema:`,
@@ -213,6 +435,202 @@ async function getMatchData(teamA, teamB, moment) {
   } catch (parseErr) {
     console.error('[Perplexity] JSON non valido:', jsonMatch[0].substring(0, 300));
     throw new Error('JSON Perplexity non parsabile: ' + parseErr.message);
+  }
+}
+
+// ── Perplexity: ricerca risultati giornata ────────────────
+async function getHighlightsData(matchday) {
+  const today = todayISO();
+  const assets = getAssetPaths('highlights');
+
+  const schema = {
+    meta: {
+      moment:     'highlights',
+      brand:      'PitchPulse',
+      version:    '2.0',
+      tournament: 'FIFA World Cup 2026',
+      audio_src:  assets.audio_src,
+      video_src:  assets.video_src
+    },
+    day: {
+      matchday: 'FILL_MD1_OR_MD2_OR_MD3_OR_R32_ETC',
+      date:     'FILL_DATE_DD_MONTH_YYYY',
+      label:    'FILL_LABEL_E.G._GROUP_STAGE_DAY_1'
+    },
+    headline: {
+      eyebrow:     'FILL_E.G._GOALS_TODAY',
+      value:       'FILL_TOTAL_GOALS_NUMBER',
+      unit:        'FILL_E.G._GOALS',
+      description: 'FILL_ONE_LINE_SUMMARY_OF_THE_DAY'
+    },
+    matches: [
+      {
+        team_a:      { name: 'FILL_FULL_NAME', code: 'FILL_CODE', flag_emoji: 'FILL_EMOJI' },
+        team_b:      { name: 'FILL_FULL_NAME', code: 'FILL_CODE', flag_emoji: 'FILL_EMOJI' },
+        score_a:     0,
+        score_b:     0,
+        status:      'FILL_FT_OR_LIVE_OR_NS',
+        highlight:   'FILL_KEY_MOMENT_MAX_8_WORDS_OR_NULL'
+      }
+    ],
+    top_scorer: {
+      name:   'FILL_PLAYER_NAME_OR_NULL',
+      team:   'FILL_TEAM_CODE_OR_NULL',
+      goals:  0,
+      detail: 'FILL_ONE_LINE_STAT_OR_NULL'
+    },
+    cold_fact: {
+      emoji: 'FILL_EMOJI',
+      label: 'DID YOU KNOW',
+      text:  'FILL_MOST_INTERESTING_FACT_ABOUT_TODAY'
+    },
+    caption_hook: 'FILL_STRICTLY_MAX_12_WORDS_PUNCHY_DATA_FIRST',
+    hashtags: {
+      matchday:         `#WC2026${matchday.replace(/\s/g, '')}`,
+      tournament:       '#WorldCup2026 #WC2026',
+      brand_pitchpulse: '#PitchPulse',
+      generic:          '#Football #Soccer #FIFA #MatchDay'
+    }
+  };
+
+  const prompt = [
+    `FIFA World Cup 2026 — highlights recap for: "${matchday}".`,
+    `Today is ${today}. Research ALL matches played on this matchday from the web.`,
+    `Fill the matches[] array with EVERY match of this matchday — do not omit any.`,
+    `For each match: fill real scores, real team names, flag emojis, and a key highlight max 8 words (goal scorer, red card, penalty, etc). If match not yet played set status to "NS" and scores to null.`,
+    `headline.value: total goals scored across ALL matches today.`,
+    `top_scorer: player with most goals today. If tied pick the most notable. Set to null if no goals yet.`,
+    `caption_hook: STRICTLY max 12 words, punchy, data-first, TikTok tone. Count words before submitting.`,
+    `Do NOT append sources, citations or footnotes after the JSON.`,
+    `Return ONLY valid JSON — no markdown, no code fences, no explanation, no text before or after.`,
+    `Use this exact schema (expand matches[] with all real matches):`,
+    JSON.stringify(schema, null, 2)
+  ].join('\n');
+
+  const res = await fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'sonar-pro',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 3000
+    })
+  });
+
+  const data = await res.json();
+  if (!data.choices || !data.choices[0]) {
+    throw new Error('Perplexity error: ' + JSON.stringify(data));
+  }
+
+  let text = data.choices[0].message.content;
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('Nessun JSON trovato (highlights). Risposta: ' + text.substring(0, 200));
+  }
+
+  try {
+    return { data: JSON.parse(jsonMatch[0]), promptUsed: prompt };
+  } catch (parseErr) {
+    console.error('[Perplexity/highlights] JSON non valido:', jsonMatch[0].substring(0, 300));
+    throw new Error('JSON Perplexity highlights non parsabile: ' + parseErr.message);
+  }
+}
+
+// ── Handler highlights ────────────────────────────────────
+async function handleHighlights(ctx) {
+  const input = ctx.message.text.replace('/highlights', '').trim();
+  if (!input) return ctx.reply('Formato: /highlights MD1\nEsempi: /highlights MD1 | /highlights MD3 | /highlights 2026-06-16');
+
+  const slug = input.replace(/\s/g, '').substring(0, 8).toUpperCase();
+  const projectName = `highlights-${slug}-${Date.now()}`;
+
+  await ctx.reply(`📊 *HIGHLIGHTS* — ${input}\nAvvio pipeline...`, { parse_mode: 'Markdown' });
+
+  try {
+    await ctx.reply('🔍 Raccogliendo risultati...');
+    const { data: jsonData, promptUsed } = await getHighlightsData(input);
+
+    await ctx.reply('🎨 Generando HTML e copy...');
+
+    const copyPrompt = `You are a social media copywriter for PitchPulse, a football analytics brand targeting 18-28 on TikTok and Instagram Reels.
+
+Write a social copy block for this HIGHLIGHTS recap. Use ONLY data from the JSON below.
+Tone: high energy, punchy, data-first, never neutral.
+
+Return ONLY this exact format, no extra text:
+
+=== PITCHPULSE - HIGHLIGHTS COPY ===
+Matchday: [day.matchday] - [day.date]
+Tournament: [meta.tournament]
+
+--- TIKTOK / REELS CAPTION ---
+[caption_hook from JSON - STRICTLY max 12 words]
+
+[List all results as: FLAG TeamA score-score TeamB FLAG]
+[1 line on top scorer if not null]
+[1 CTA - e.g. "Follow @PitchPulse for every result 👇"]
+
+--- HASHTAGS ---
+[hashtags.matchday] [hashtags.tournament] [hashtags.brand_pitchpulse] [hashtags.generic]
+#highlights #results #WC2026recap
+
+JSON:
+${JSON.stringify(jsonData, null, 2)}`;
+
+    const [{ html, claudePayload }, postText] = await Promise.all([
+      generateHTML(jsonData, 'highlights'),
+      (async () => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000);
+        try {
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+              'x-api-key': ANTHROPIC_API_KEY,
+              'anthropic-version': '2023-06-01',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: 'claude-haiku-4-5',
+              max_tokens: 1000,
+              messages: [{ role: 'user', content: copyPrompt }]
+            })
+          });
+          clearTimeout(timeout);
+          const data = await res.json();
+          if (!data.content || !data.content[0]) throw new Error('Claude copy error');
+          return data.content[0].text.trim();
+        } catch (err) {
+          clearTimeout(timeout);
+          return `=== PITCHPULSE - HIGHLIGHTS COPY ===\nMatchday: ${input}\n\n--- CAPTION ---\n${jsonData.caption_hook || ''}\n\n--- HASHTAGS ---\n${Object.values(jsonData.hashtags || {}).join(' ')}`;
+        }
+      })()
+    ]);
+
+    await ctx.reply('🎬 Avviando render...');
+    const base = RAILWAY_PUBLIC_URL || '';
+    const callbackUrl = base ? `${base.startsWith('https') ? '' : 'https://'}${base}/callback` : '';
+
+    const triggered = await triggerRender(html, projectName, callbackUrl, postText, promptUsed, claudePayload);
+
+    if (triggered) {
+      await ctx.reply(`✅ *Render avviato!*\n📁 \`${projectName}\`\nPronto in circa 3 minuti`, { parse_mode: 'Markdown' });
+    } else {
+      await ctx.reply('❌ Errore GitHub Actions');
+    }
+  } catch (err) {
+    console.error('[highlights] Error:', err.message);
+    if (err.name === 'AbortError' || err.message.includes('aborted')) {
+      await ctx.reply('⏱ Timeout. Riprova con /highlights');
+    } else {
+      await ctx.reply(`❌ Errore: ${err.message}`);
+    }
   }
 }
 
@@ -278,7 +696,7 @@ async function triggerRender(html, projectName, callbackUrl, postText, promptPer
   return res.status === 204;
 }
 
-// ── Handler principale ────────────────────────────────────
+// ── Handler principale match ──────────────────────────────
 async function handleMoment(ctx, moment) {
   const text = ctx.message.text.replace(`/${moment}`, '').trim();
   const match = text.match(/(.+?)\s+vs\s+(.+)/i);
@@ -292,42 +710,35 @@ async function handleMoment(ctx, moment) {
   const emoji = { prematch: '⚽', live: '🔴', postmatch: '🏆', teaser: '🔮' }[moment];
   const label = { prematch: 'PRE-MATCH', live: 'LIVE', postmatch: 'POST-MATCH', teaser: 'TEASER' }[moment];
 
-  await ctx.reply(`${emoji} *${label}* - ${teamA} vs ${teamB}\n Avvio pipeline...`, { parse_mode: 'Markdown' });
+  await ctx.reply(`${emoji} *${label}* - ${teamA} vs ${teamB}\nAvvio pipeline...`, { parse_mode: 'Markdown' });
 
   try {
-    await ctx.reply('Raccogliendo dati...');
+    await ctx.reply('📊 Raccogliendo dati...');
     const { data: jsonData, promptUsed } = await getMatchData(teamA, teamB, moment);
 
-    await ctx.reply('Generando HTML e copy...');
+    await ctx.reply('🎨 Generando HTML e copy...');
     const [{ html, claudePayload }, postText] = await Promise.all([
       generateHTML(jsonData, moment),
       generateCopy(jsonData, moment, teamA, teamB)
     ]);
 
-    await ctx.reply('Avviando render...');
+    await ctx.reply('🎬 Avviando render...');
     const base = RAILWAY_PUBLIC_URL || '';
     const callbackUrl = base ? `${base.startsWith('https') ? '' : 'https://'}${base}/callback` : '';
 
-    const triggered = await triggerRender(
-      html,
-      projectName,
-      callbackUrl,
-      postText,
-      promptUsed,
-      claudePayload
-    );
+    const triggered = await triggerRender(html, projectName, callbackUrl, postText, promptUsed, claudePayload);
 
     if (triggered) {
-      await ctx.reply(`*Render avviato!*\n ${projectName}\n Pronto in circa 3 minuti`, { parse_mode: 'Markdown' });
+      await ctx.reply(`✅ *Render avviato!*\n📁 \`${projectName}\`\nPronto in circa 3 minuti`, { parse_mode: 'Markdown' });
     } else {
-      await ctx.reply('Errore GitHub Actions');
+      await ctx.reply('❌ Errore GitHub Actions');
     }
   } catch (err) {
     console.error(`[${moment}] Error:`, err.message);
     if (err.name === 'AbortError' || err.message.includes('aborted')) {
-      await ctx.reply(`Timeout Claude. Riprova con /${moment}`);
+      await ctx.reply(`⏱ Timeout Claude. Riprova con /${moment}`);
     } else {
-      await ctx.reply(`Errore: ${err.message}`);
+      await ctx.reply(`❌ Errore: ${err.message}`);
     }
   }
 }
@@ -338,11 +749,11 @@ app.post('/callback', async (req, res) => {
   try {
     if (status === 'ok') {
       await bot.telegram.sendMessage(process.env.TELEGRAM_CHAT_ID,
-        `*Render completato!*\n ${project}\n ${dropbox}`,
+        `✅ *Render completato!*\n📁 \`${project}\`\n☁️ \`${dropbox}\``,
         { parse_mode: 'Markdown' });
     } else {
       await bot.telegram.sendMessage(process.env.TELEGRAM_CHAT_ID,
-        `*Render fallito:* ${project}`,
+        `❌ *Render fallito:* \`${project}\``,
         { parse_mode: 'Markdown' });
     }
   } catch (e) { console.error('Callback error:', e.message); }
@@ -353,17 +764,19 @@ app.get('/health', (req, res) => res.json({ ok: true, bot: 'PitchPulse' }));
 
 // ── Comandi bot ───────────────────────────────────────────
 bot.command('start', (ctx) => ctx.reply(
-  '*PitchPulse Bot* attivo!\n\n /prematch Brazil vs Argentina\n /live Brazil vs Argentina\n /postmatch Brazil vs Argentina\n /teaser Brazil vs Argentina',
+  '*PitchPulse Bot* attivo!\n\n⚽ /prematch Brazil vs Argentina\n🔴 /live Brazil vs Argentina\n🏆 /postmatch Brazil vs Argentina\n🔮 /teaser Brazil vs Argentina\n🤯 /curiosity World Cup 2026\n📊 /highlights MD1',
   { parse_mode: 'Markdown' }
 ));
 bot.command('help', (ctx) => ctx.reply(
-  '*Comandi:*\n\n /prematch TeamA vs TeamB\n /live TeamA vs TeamB\n /postmatch TeamA vs TeamB\n /teaser TeamA vs TeamB\n\n Render circa 3 min | Output: Dropbox /[project]/',
+  '*Comandi:*\n\n⚽ /prematch TeamA vs TeamB\n🔴 /live TeamA vs TeamB\n🏆 /postmatch TeamA vs TeamB\n🔮 /teaser TeamA vs TeamB\n🤯 /curiosity [topic]\n📊 /highlights [MD1 / MD2 / data]\n\n⏱ Render circa 3 min | ☁️ Output: Dropbox /[project]/',
   { parse_mode: 'Markdown' }
 ));
-bot.command('prematch',  (ctx) => handleMoment(ctx, 'prematch'));
-bot.command('live',      (ctx) => handleMoment(ctx, 'live'));
-bot.command('postmatch', (ctx) => handleMoment(ctx, 'postmatch'));
-bot.command('teaser',    (ctx) => handleMoment(ctx, 'teaser'));
+bot.command('prematch',   (ctx) => handleMoment(ctx, 'prematch'));
+bot.command('live',       (ctx) => handleMoment(ctx, 'live'));
+bot.command('postmatch',  (ctx) => handleMoment(ctx, 'postmatch'));
+bot.command('teaser',     (ctx) => handleMoment(ctx, 'teaser'));
+bot.command('curiosity',  (ctx) => handleCuriosity(ctx));
+bot.command('highlights', (ctx) => handleHighlights(ctx));
 
 // ── Server / webhook ──────────────────────────────────────
 if (RAILWAY_PUBLIC_URL) {
