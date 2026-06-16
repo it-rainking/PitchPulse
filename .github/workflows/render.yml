@@ -31,7 +31,7 @@ on:
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
 
     steps:
       # ── 1. Checkout repo ──────────────────────────────────
@@ -72,6 +72,15 @@ jobs:
       # ── 4. Installa HyperFrames ───────────────────────────
       - name: Install HyperFrames
         run: npm install -g hyperframes
+
+      # ── 4b. Installa chrome-headless-shell (render ottimizzato) ──
+      - name: Install chrome-headless-shell
+        run: |
+          npx @puppeteer/browsers install chrome-headless-shell
+          # Trova il path e salvalo per lo step render
+          CHS_PATH=$(find ~/.cache/puppeteer -name "chrome-headless-shell" -type f 2>/dev/null | head -1)
+          echo "chrome-headless-shell trovato: $CHS_PATH"
+          echo "CHS_PATH=$CHS_PATH" >> $GITHUB_ENV
 
       # ── 5. Installa dipendenze progetto ───────────────────
       - name: Install project dependencies
@@ -144,8 +153,19 @@ jobs:
       - name: Render MP4
         env:
           PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
+          HYPERFRAMES_BROWSER_PATH: ${{ env.CHS_PATH }}
         run: |
           PROJECT="${{ github.event.inputs.project }}"
+
+          # Usa chrome-headless-shell se disponibile, altrimenti fallback su chromium
+          if [ -n "$CHS_PATH" ] && [ -f "$CHS_PATH" ]; then
+            echo "Usando chrome-headless-shell: $CHS_PATH"
+            export HYPERFRAMES_BROWSER_PATH="$CHS_PATH"
+          else
+            echo "chrome-headless-shell non trovato, usando chromium fallback"
+            export PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+          fi
+
           cd "$PROJECT"
           npx hyperframes render . \
             --output "${PROJECT}.mp4" \
