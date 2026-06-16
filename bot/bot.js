@@ -17,61 +17,167 @@ const PORT = process.env.PORT || 3000;
 
 const SYSTEM_PROMPT = fs.readFileSync(path.join(__dirname, 'prompts/system-html-agent.txt'), 'utf8');
 
-async function getMatchData(teamA, teamB, moment) {
+// ── Helper: data corrente formattata ──────────────────────
+function todayISO() {
+  return new Date().toISOString().split('T')[0];
+}
+
+// ── Helper: genera copy social strutturato via Claude ─────
+async function generateCopy(jsonData, moment, teamA, teamB) {
   const momentLabel = {
-    prematch: 'PRE-MATCH preview',
-    live: 'LIVE match current score and stats',
-    postmatch: 'POST-MATCH final result',
-    teaser: 'tournament teaser'
+    prematch:  'PRE-MATCH',
+    live:      'LIVE',
+    postmatch: 'POST-MATCH',
+    teaser:    'TEASER'
   }[moment] || 'PRE-MATCH';
 
-  const codeA = teamA.substring(0, 3).toUpperCase();
-  const codeB = teamB.substring(0, 3).toUpperCase();
+  const copyPrompt = `You are a social media copywriter for PitchPulse, a football analytics brand targeting 18-28 on TikTok and Instagram Reels.
+
+Write a social copy block for this ${momentLabel} card. Use ONLY data from the JSON below.
+Tone: high energy, punchy, data-first, never neutral.
+
+Return ONLY this exact format, no extra text:
+
+=== PITCHPULSE - ${momentLabel} COPY ===
+Match: ${teamA} vs ${teamB}
+Phase: [match.phase] - [meta.tournament]
+Venue: [match.venue], [match.city]
+Kickoff: [match.kickoff_local if available]
+
+--- TIKTOK / REELS CAPTION ---
+[caption_hook from JSON - max 15 words, punchy]
+
+[2-3 lines expanding on key stat or cold_fact. Max 40 words. Data-first.]
+
+[1 question to drive comments - e.g. "Who wins this one? Drop your score below"]
+
+--- HASHTAGS ---
+[hashtags.match] [hashtags.tournament] [hashtags.brand_pitchpulse] [hashtags.generic]
+#${moment} #matchday #stats #footballdata #WC2026
+
+JSON:
+${JSON.stringify(jsonData, null, 2)}`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60000);
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: copyPrompt }]
+      })
+    });
+    clearTimeout(timeout);
+    const data = await res.json();
+    if (!data.content || !data.content[0]) throw new Error('Claude copy error');
+    return data.content[0].text.trim();
+  } catch (err) {
+    clearTimeout(timeout);
+    // Fallback minimale se la chiamata copy fallisce
+    const hashtags = Object.values(jsonData.hashtags || {}).join(' ');
+    return [
+      `=== PITCHPULSE - ${momentLabel} COPY ===`,
+      `Match: ${teamA} vs ${teamB}`,
+      ``,
+      `--- TIKTOK / REELS CAPTION ---`,
+      jsonData.caption_hook || '',
+      ``,
+      `--- HASHTAGS ---`,
+      hashtags
+    ].join('\n');
+  }
+}
+
+// ── Perplexity: ricerca dati match ────────────────────────
+async function getMatchData(teamA, teamB, moment) {
+  const momentLabel = {
+    prematch:  'PRE-MATCH preview',
+    live:      'LIVE match current score and stats',
+    postmatch: 'POST-MATCH final result',
+    teaser:    'tournament teaser'
+  }[moment] || 'PRE-MATCH';
+
+  const codeA     = teamA.replace(/\s/g, '').substring(0, 3).toUpperCase();
+  const codeB     = teamB.replace(/\s/g, '').substring(0, 3).toUpperCase();
   const hashMatch = `#${teamA.replace(/\s/g, '')}vs${teamB.replace(/\s/g, '')}`;
+  const today     = todayISO();
 
   const schema = {
-    meta: { moment, brand: 'PitchPulse', version: '2.0' },
-    match: {
-      team_a: teamA,
-      team_a_code: codeA,
-      team_b: teamB,
-      team_b_code: codeB,
-      phase: 'Group Stage',
-      matchday: 1,
-      kickoff_utc: '2026-06-15T18:00:00Z',
-      venue: 'FILL_REAL_VENUE',
-      city: 'FILL_REAL_CITY'
+    meta: {
+      moment,
+      brand: 'PitchPulse',
+      version: '2.0',
+      tournament: 'FIFA World Cup 2026'
     },
-    headline: { label: 'KEY STAT', value: 'XX', sub_label: 'FILL', description: 'FILL_REAL_CONTEXT' },
+    match: {
+      team_a:        { name: teamA, code: codeA, flag_emoji: 'FILL_EMOJI' },
+      team_b:        { name: teamB, code: codeB, flag_emoji: 'FILL_EMOJI' },
+      phase:         'FILL_REAL_PHASE',
+      matchday:      'FILL_MD1_OR_MD2_OR_MD3',
+      kickoff_utc:   'FILL_REAL_KICKOFF_UTC',
+      kickoff_local: 'FILL_REAL_KICKOFF_LOCAL',
+      venue:         'FILL_REAL_VENUE',
+      city:          'FILL_REAL_CITY'
+    },
+    headline: {
+      eyebrow:     'FILL_SHORT_LABEL',
+      value:       'FILL_NUMBER',
+      unit:        'FILL_UNIT_OR_NULL',
+      description: 'FILL_REAL_CONTEXT'
+    },
     stats: [
-      { label: 'FILL', value: 'X', context: 'FILL' },
-      { label: 'FILL', value: 'X', context: 'FILL' },
-      { label: 'FILL', value: 'X', context: 'FILL' }
+      { label: 'FILL', value: 'FILL', context: 'FILL' },
+      { label: 'FILL', value: 'FILL', context: 'FILL' },
+      { label: 'FILL', value: 'FILL', context: 'FILL' }
     ],
-    H2H: { team_a_wins: 0, draws: 0, team_b_wins: 0 },
-    cold_fact: { label: 'DID YOU KNOW', text: 'FILL_REAL_FACT' },
-    player_watch: { name: 'FILL_REAL_PLAYER', team: teamA, stat: 'FILL_REAL_STAT' },
-    mvp: null,
-    cold_verdict: null,
+    H2H: {
+      team_a_wins:    0,
+      draws:          0,
+      team_b_wins:    0,
+      last_meeting:   'FILL_OR_NULL',
+      total_meetings: 0
+    },
+    cold_fact: {
+      emoji: 'FILL_EMOJI',
+      label: 'DID YOU KNOW',
+      text:  'FILL_REAL_SURPRISING_FACT'
+    },
+    player_watch: {
+      name: 'FILL_REAL_PLAYER',
+      team: codeA,
+      stat: 'FILL_REAL_STAT_ONE_SENTENCE'
+    },
+    mvp:           null,
+    cold_verdict:  null,
     record_broken: null,
-    next_match: null,
-    score_a: null,
-    score_b: null,
-    minute: null,
-    caption_hook: 'FILL_PUNCHY_HOOK',
+    next_match:    null,
+    score_a:       null,
+    score_b:       null,
+    minute:        null,
+    caption_hook:  'FILL_MAX_12_WORDS_PUNCHY_DATA_FIRST',
     hashtags: {
-      match: hashMatch,
-      tournament: '#WorldCup2026 #WC2026',
+      match:            hashMatch,
+      tournament:       '#WorldCup2026 #WC2026',
       brand_pitchpulse: '#PitchPulse',
-      generic: '#Football #Soccer #FIFA'
+      generic:          '#Football #Soccer #FIFA'
     }
   };
 
   const prompt = [
-    `FIFA World Cup 2026 — ${momentLabel}: ${teamA} vs ${teamB}.`,
-    `Research REAL current data from the web.`,
+    `FIFA World Cup 2026 - ${momentLabel}: ${teamA} vs ${teamB}.`,
+    `Today is ${today}. Research REAL verified data from the web.`,
     `Fill ALL fields marked FILL_* with accurate real data.`,
-    `Return ONLY valid JSON — no markdown, no code fences, no explanation, no text before or after.`,
+    `caption_hook: max 12 words, punchy, data-first, TikTok tone. No typos.`,
+    `Do NOT append sources, citations or footnotes after the JSON.`,
+    `Return ONLY valid JSON - no markdown, no code fences, no explanation, no text before or after.`,
     `Use this exact schema:`,
     JSON.stringify(schema, null, 2)
   ].join('\n');
@@ -110,6 +216,7 @@ async function getMatchData(teamA, teamB, moment) {
   }
 }
 
+// ── Claude: genera HTML ───────────────────────────────────
 async function generateHTML(jsonData, moment) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 120000);
@@ -142,6 +249,7 @@ async function generateHTML(jsonData, moment) {
   }
 }
 
+// ── GitHub Actions: trigger render ───────────────────────
 async function triggerRender(html, projectName, callbackUrl, postText, promptPerplexity, promptClaude) {
   const htmlBase64         = Buffer.from(html).toString('base64');
   const postTextBase64     = postText         ? Buffer.from(postText).toString('base64')         : '';
@@ -170,10 +278,11 @@ async function triggerRender(html, projectName, callbackUrl, postText, promptPer
   return res.status === 204;
 }
 
+// ── Handler principale ────────────────────────────────────
 async function handleMoment(ctx, moment) {
   const text = ctx.message.text.replace(`/${moment}`, '').trim();
   const match = text.match(/(.+?)\s+vs\s+(.+)/i);
-  if (!match) return ctx.reply(`❌ Formato: /${moment} Brazil vs Argentina`);
+  if (!match) return ctx.reply(`Formato: /${moment} Brazil vs Argentina`);
 
   const teamA = match[1].trim();
   const teamB = match[2].trim();
@@ -183,30 +292,21 @@ async function handleMoment(ctx, moment) {
   const emoji = { prematch: '⚽', live: '🔴', postmatch: '🏆', teaser: '🔮' }[moment];
   const label = { prematch: 'PRE-MATCH', live: 'LIVE', postmatch: 'POST-MATCH', teaser: 'TEASER' }[moment];
 
-  await ctx.reply(`${emoji} *${label}* — ${teamA} vs ${teamB}\n⏳ Avvio pipeline...`, { parse_mode: 'Markdown' });
+  await ctx.reply(`${emoji} *${label}* - ${teamA} vs ${teamB}\n Avvio pipeline...`, { parse_mode: 'Markdown' });
 
   try {
-    await ctx.reply('📊 Raccogliendo dati...');
+    await ctx.reply('Raccogliendo dati...');
     const { data: jsonData, promptUsed } = await getMatchData(teamA, teamB, moment);
 
-    await ctx.reply('🎨 Generando HTML...');
-    const { html, claudePayload } = await generateHTML(jsonData, moment);
+    await ctx.reply('Generando HTML e copy...');
+    const [{ html, claudePayload }, postText] = await Promise.all([
+      generateHTML(jsonData, moment),
+      generateCopy(jsonData, moment, teamA, teamB)
+    ]);
 
-    await ctx.reply('🎬 Avviando render...');
+    await ctx.reply('Avviando render...');
     const base = RAILWAY_PUBLIC_URL || '';
     const callbackUrl = base ? `${base.startsWith('https') ? '' : 'https://'}${base}/callback` : '';
-
-    // Testo post social da caption_hook + hashtags del JSON
-    const postText = [
-      `=== PITCHPULSE — ${moment.toUpperCase()} COPY ===`,
-      `Match: ${teamA} vs ${teamB}`,
-      ``,
-      `--- CAPTION ---`,
-      jsonData.caption_hook || '',
-      ``,
-      `--- HASHTAGS ---`,
-      Object.values(jsonData.hashtags || {}).join(' ')
-    ].join('\n');
 
     const triggered = await triggerRender(
       html,
@@ -218,30 +318,31 @@ async function handleMoment(ctx, moment) {
     );
 
     if (triggered) {
-      await ctx.reply(`✅ *Render avviato!*\n📁 \`${projectName}\`\n⏱ Pronto in ~3 minuti`, { parse_mode: 'Markdown' });
+      await ctx.reply(`*Render avviato!*\n ${projectName}\n Pronto in circa 3 minuti`, { parse_mode: 'Markdown' });
     } else {
-      await ctx.reply('❌ Errore GitHub Actions');
+      await ctx.reply('Errore GitHub Actions');
     }
   } catch (err) {
     console.error(`[${moment}] Error:`, err.message);
     if (err.name === 'AbortError' || err.message.includes('aborted')) {
-      await ctx.reply(`⏱ Timeout Claude. Riprova con /${moment}`);
+      await ctx.reply(`Timeout Claude. Riprova con /${moment}`);
     } else {
-      await ctx.reply(`❌ Errore: ${err.message}`);
+      await ctx.reply(`Errore: ${err.message}`);
     }
   }
 }
 
+// ── Callback render completato ────────────────────────────
 app.post('/callback', async (req, res) => {
   const { status, project, dropbox } = req.body;
   try {
     if (status === 'ok') {
       await bot.telegram.sendMessage(process.env.TELEGRAM_CHAT_ID,
-        `✅ *Render completato!*\n📁 \`${project}\`\n☁️ \`${dropbox}\``,
+        `*Render completato!*\n ${project}\n ${dropbox}`,
         { parse_mode: 'Markdown' });
     } else {
       await bot.telegram.sendMessage(process.env.TELEGRAM_CHAT_ID,
-        `❌ *Render fallito:* \`${project}\``,
+        `*Render fallito:* ${project}`,
         { parse_mode: 'Markdown' });
     }
   } catch (e) { console.error('Callback error:', e.message); }
@@ -250,32 +351,34 @@ app.post('/callback', async (req, res) => {
 
 app.get('/health', (req, res) => res.json({ ok: true, bot: 'PitchPulse' }));
 
+// ── Comandi bot ───────────────────────────────────────────
 bot.command('start', (ctx) => ctx.reply(
-  '👋 *PitchPulse Bot* attivo!\n\n⚽ `/prematch` Brazil vs Argentina\n🔴 `/live` Brazil vs Argentina\n🏆 `/postmatch` Brazil vs Argentina\n🔮 `/teaser` Brazil vs Argentina',
+  '*PitchPulse Bot* attivo!\n\n /prematch Brazil vs Argentina\n /live Brazil vs Argentina\n /postmatch Brazil vs Argentina\n /teaser Brazil vs Argentina',
   { parse_mode: 'Markdown' }
 ));
 bot.command('help', (ctx) => ctx.reply(
-  '📖 *Comandi:*\n\n⚽ `/prematch TeamA vs TeamB`\n🔴 `/live TeamA vs TeamB`\n🏆 `/postmatch TeamA vs TeamB`\n🔮 `/teaser TeamA vs TeamB`\n\n⏱ Render ~3 min | ☁️ Output: Dropbox /[project]/',
+  '*Comandi:*\n\n /prematch TeamA vs TeamB\n /live TeamA vs TeamB\n /postmatch TeamA vs TeamB\n /teaser TeamA vs TeamB\n\n Render circa 3 min | Output: Dropbox /[project]/',
   { parse_mode: 'Markdown' }
 ));
-bot.command('prematch', (ctx) => handleMoment(ctx, 'prematch'));
-bot.command('live', (ctx) => handleMoment(ctx, 'live'));
+bot.command('prematch',  (ctx) => handleMoment(ctx, 'prematch'));
+bot.command('live',      (ctx) => handleMoment(ctx, 'live'));
 bot.command('postmatch', (ctx) => handleMoment(ctx, 'postmatch'));
-bot.command('teaser', (ctx) => handleMoment(ctx, 'teaser'));
+bot.command('teaser',    (ctx) => handleMoment(ctx, 'teaser'));
 
+// ── Server / webhook ──────────────────────────────────────
 if (RAILWAY_PUBLIC_URL) {
   app.use(bot.webhookCallback('/webhook'));
   app.listen(PORT, async () => {
-    console.log(`🚀 Server on port ${PORT}`);
+    console.log(`Server on port ${PORT}`);
     const webhookUrl = `${RAILWAY_PUBLIC_URL.startsWith('https') ? '' : 'https://'}${RAILWAY_PUBLIC_URL}/webhook`;
     await bot.telegram.setWebhook(webhookUrl);
-    console.log(`🔗 Webhook: ${webhookUrl}`);
+    console.log(`Webhook: ${webhookUrl}`);
   });
 } else {
-  app.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
+  app.listen(PORT, () => console.log(`Server on port ${PORT}`));
   bot.launch({ dropPendingUpdates: true });
 }
 
-console.log('🤖 PitchPulse Bot avviato');
-process.once('SIGINT', () => bot.stop('SIGINT'));
+console.log('PitchPulse Bot avviato');
+process.once('SIGINT',  () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
