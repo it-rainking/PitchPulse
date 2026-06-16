@@ -5,10 +5,12 @@ Brand: PitchPulse | Style: Electric Modern — dark navy/violet, cyan/pink accen
 
 ## MOMENT DETECTION
 Read meta.moment in the JSON:
-- "prematch"  -> PRE-MATCH template
-- "live"      -> LIVE template
-- "postmatch" -> POST-MATCH template
-- "teaser"    -> TEASER template
+- "prematch"   -> PRE-MATCH template
+- "live"       -> LIVE template
+- "postmatch"  -> POST-MATCH template
+- "teaser"     -> TEASER template
+- "curiosity"  -> CURIOSITY template
+- "highlights" -> HIGHLIGHTS template
 
 ## CRITICAL HTML RULES
 
@@ -30,8 +32,8 @@ Meta tag: <meta name="viewport" content="width=1080, initial-scale=1.0, minimum-
 LIVE: --live:#FF3B3B replaces cyan | POSTMATCH: --gold replaces cyan
 
 ### 4. AUDIO — first child of #root:
-<audio id="bg-audio" src="audio/PP-[moment].mp3" data-start="0" data-duration="15" data-volume="0.8" loop preload="auto"></audio>
-prematch/teaser -> PP-prematch.mp3 | live -> PP-live.mp3 | postmatch -> PP-postmatch.mp3
+<audio id="bg-audio" src="[meta.audio_src]" data-start="0" data-duration="15" data-volume="0.8" loop preload="auto"></audio>
+Always read src from meta.audio_src in the JSON. Never hardcode the filename.
 
 ### 5. ROOT ELEMENT:
 <div id="root" data-composition-id="pitchpulse-[moment]" data-width="1080" data-height="1920" data-fps="30" data-duration="15" data-start="0">
@@ -40,8 +42,9 @@ CSS: #root { position:absolute; inset:0; width:1080px; height:1920px; }
 ### 6. DOM STRUCTURE — mandatory:
 <body>
   <div id="root" data-composition-id="pitchpulse-[moment]" data-width="1080" data-height="1920" data-fps="30" data-duration="15" data-start="0">
-    <audio id="bg-audio" src="audio/PP-[moment].mp3" data-start="0" data-duration="15" data-volume="0.8" loop preload="auto"></audio>
+    <audio id="bg-audio" src="[meta.audio_src]" data-start="0" data-duration="15" data-volume="0.8" loop preload="auto"></audio>
     <div class="bg-layer-wrap">
+      <video class="bg-video" src="[meta.video_src]" data-start="0" data-duration="15" autoplay muted loop playsinline preload="auto"></video>
       <div class="bg-grid"></div>
       <div class="bg-glow"></div>
       <div class="bg-noise"></div>
@@ -116,6 +119,8 @@ Label:26px | Body:28px | Footer handle:38px | Hashtags:24px | Team:72px | Phase:
 ## JSON FIELD MAPPING
 
 The JSON uses these field names — always read them exactly:
+- meta.audio_src (full relative path to audio file — use as-is in <audio src>)
+- meta.video_src (full relative path to video file — use as-is in <video src>)
 - match.team_a.name / match.team_a.code / match.team_a.flag_emoji
 - match.team_b.name / match.team_b.code / match.team_b.flag_emoji
 - match.phase / match.matchday / match.kickoff_utc / match.kickoff_local / match.venue / match.city
@@ -171,3 +176,62 @@ The JSON uses these field names — always read them exactly:
 5. Cold fact (accent border)
 6. CTA block
 7. Footer
+
+### 19. BACKGROUND VIDEO — always include in bg-layer-wrap, before bg-grid:
+<video class="bg-video" src="[meta.video_src]" data-start="0" data-duration="15" autoplay muted loop playsinline preload="auto"></video>
+Always read src from meta.video_src in the JSON. Never hardcode the filename.
+CSS:
+.bg-video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0.15; mix-blend-mode:screen; z-index:0; }
+Visual style: violet/cyan dominant, emoji-forward, high-energy. Badge color: accent pink #FF2D7A.
+Audio: PP-prematch.mp3
+
+JSON fields for this template:
+- curiosity.topic / curiosity.category (e.g. RECORD / STORIA / NUMERO / LEGGENDA)
+- headline.eyebrow / headline.value / headline.unit / headline.description (hero curiosity)
+- facts[0..2].emoji / facts[0..2].label / facts[0..2].text (three secondary facts)
+- cold_fact.emoji / cold_fact.label / cold_fact.text (bonus cold fact)
+- caption_hook / hashtags
+
+Sections:
+1. Header: logo + PITCHPULSE + pulsing accent dot + badge "WC2026 🤯" (pink #FF2D7A)
+2. Topic block: curiosity.category eyebrow (Barlow Condensed 32px cyan) + curiosity.topic title (Bebas Neue 72px white)
+3. Hero curiosity: headline.eyebrow (label 28px muted) + headline.value (Bebas Neue 200px cyan glow) + headline.unit (48px gold) + headline.description (Barlow 30px white, max 3 lines)
+4. Cyan divider
+5. Three fact cards (vertical stack, full width):
+   - facts[0]: emoji (48px) + facts[0].label (Barlow Condensed 28px cyan) + facts[0].text (Barlow 28px muted)
+   - facts[1]: same layout, violet left border
+   - facts[2]: same layout, accent left border
+   Each card: glass background, clip-path corner cut, animated left border ::before
+6. Cold fact block: cold_fact.emoji + cold_fact.label (gold) + cold_fact.text (white italic)
+7. Footer: @PitchPulse + hashtags
+
+### HIGHLIGHTS:
+Visual style: gold dominant, scoreboard feel, dense data layout. Badge color: gold #FFD166.
+Audio: PP-postmatch.mp3 (via meta.audio_src)
+
+JSON fields for this template:
+- day.matchday / day.date / day.label
+- headline.eyebrow / headline.value / headline.unit / headline.description
+- matches[]: array of { team_a{name,code,flag_emoji}, team_b{name,code,flag_emoji}, score_a, score_b, status, highlight }
+- top_scorer.name / top_scorer.team / top_scorer.goals / top_scorer.detail (null = display:none)
+- cold_fact.emoji / cold_fact.label / cold_fact.text
+- caption_hook / hashtags
+
+Sections:
+1. Header: logo + PITCHPULSE + pulsing gold dot + badge "[day.matchday] RECAP 📊" (gold #FFD166)
+2. Tournament + day.date + day.label (Barlow Condensed 32px muted)
+3. Hero stat: headline.eyebrow (28px cyan) + headline.value (Bebas Neue 180px gold glow) + headline.unit (48px white) + headline.description (Barlow 28px muted)
+4. Gold divider
+5. Results list — one row per match in matches[]:
+   Each row: flag_emoji + team_a.code | score_a – score_b | team_b.code + flag_emoji
+   Status badge: "FT" (muted) / "LIVE" (red pulsing) / "NS" (muted italic)
+   highlight below score in cyan 24px italic (display:none if null)
+   Row bg: glass rgba(255,255,255,0.04), border-bottom rgba(255,209,102,0.12)
+   Animate rows: fadeInUp staggered 0.1s each
+   Max 8 matches visible — if more, reduce row padding to 14px
+6. Top scorer card (violet border, display:none if top_scorer is null):
+   "TOP SCORER" eyebrow + top_scorer.name (Bebas Neue 56px) + top_scorer.team + top_scorer.goals goals + top_scorer.detail
+7. Cold fact: cold_fact.emoji + cold_fact.label (gold) + cold_fact.text (white italic)
+8. Footer: @PitchPulse + hashtags
+
+OVERFLOW NOTE: matches[] can have 4-8 rows. Keep each row max 80px height. Reduce padding if needed to fit within 1920px total.
