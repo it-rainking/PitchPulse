@@ -29,7 +29,6 @@ async function getMatchData(teamA, teamB, moment) {
   const codeB = teamB.substring(0, 3).toUpperCase();
   const hashMatch = `#${teamA.replace(/\s/g, '')}vs${teamB.replace(/\s/g, '')}`;
 
-  // Schema JSON come oggetto JS — niente interpolazione di stringhe nel JSON
   const schema = {
     meta: { moment, brand: 'PitchPulse', version: '2.0' },
     match: {
@@ -96,20 +95,16 @@ async function getMatchData(teamA, teamB, moment) {
   }
 
   let text = data.choices[0].message.content;
-
-  // Rimuovi eventuali code fences che Perplexity a volte aggiunge
   text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
 
-  // Estrai il primo oggetto JSON valido dalla risposta
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error('Nessun JSON trovato nella risposta Perplexity. Risposta: ' + text.substring(0, 200));
   }
 
   try {
-    return JSON.parse(jsonMatch[0]);
+    return { data: JSON.parse(jsonMatch[0]), promptUsed: prompt };
   } catch (parseErr) {
-    // Log per debug
     console.error('[Perplexity] JSON non valido:', jsonMatch[0].substring(0, 300));
     throw new Error('JSON Perplexity non parsabile: ' + parseErr.message);
   }
@@ -139,16 +134,19 @@ async function generateHTML(jsonData, moment) {
     if (!data.content || !data.content[0]) throw new Error('Claude error: ' + JSON.stringify(data));
     let html = data.content[0].text;
     html = html.replace(/^```html\n?/, '').replace(/\n?```$/, '').trim();
-    return html;
+    const claudePayload = `MOMENT: ${moment}\n\nJSON INVIATO A CLAUDE:\n${JSON.stringify(jsonData, null, 2)}`;
+    return { html, claudePayload };
   } catch (err) {
     clearTimeout(timeout);
     throw err;
   }
 }
 
-async function triggerRender(html, projectName, callbackUrl) {
-  // Encode base64 per evitare syntax error bash con caratteri speciali
-  const htmlBase64 = Buffer.from(html).toString('base64');
+async function triggerRender(html, projectName, callbackUrl, postText, promptPerplexity, promptClaude) {
+  const htmlBase64         = Buffer.from(html).toString('base64');
+  const postTextBase64     = postText         ? Buffer.from(postText).toString('base64')         : '';
+  const promptPplBase64    = promptPerplexity ? Buffer.from(promptPerplexity).toString('base64') : '';
+  const promptClaudeBase64 = promptClaude     ? Buffer.from(promptClaude).toString('base64')     : '';
 
   const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/render.yml/dispatches`, {
     method: 'POST',
@@ -159,7 +157,14 @@ async function triggerRender(html, projectName, callbackUrl) {
     },
     body: JSON.stringify({
       ref: 'main',
-      inputs: { html: htmlBase64, project: projectName, callback_url: callbackUrl || '' }
+      inputs: {
+        html:              htmlBase64,
+        project:           projectName,
+        post_text:         postTextBase64,
+        prompt_perplexity: promptPplBase64,
+        prompt_claude:     promptClaudeBase64,
+        callback_url:      callbackUrl || ''
+      }
     })
   });
   return res.status === 204;
@@ -182,13 +187,36 @@ async function handleMoment(ctx, moment) {
 
   try {
     await ctx.reply('📊 Raccogliendo dati...');
-    const jsonData = await getMatchData(teamA, teamB, moment);
+    const { data: jsonData, promptUsed } = await getMatchData(teamA, teamB, moment);
+
     await ctx.reply('🎨 Generando HTML...');
-    const html = await generateHTML(jsonData, moment);
+    const { html, claudePayload } = await generateHTML(jsonData, moment);
+
     await ctx.reply('🎬 Avviando render...');
     const base = RAILWAY_PUBLIC_URL || '';
     const callbackUrl = base ? `${base.startsWith('https') ? '' : 'https://'}${base}/callback` : '';
-    const triggered = await triggerRender(html, projectName, callbackUrl);
+
+    // Testo post social da caption_hook + hashtags del JSON
+    const postText = [
+      `=== PITCHPULSE — ${moment.toUpperCase()} COPY ===`,
+      `Match: ${teamA} vs ${teamB}`,
+      ``,
+      `--- CAPTION ---`,
+      jsonData.caption_hook || '',
+      ``,
+      `--- HASHTAGS ---`,
+      Object.values(jsonData.hashtags || {}).join(' ')
+    ].join('\n');
+
+    const triggered = await triggerRender(
+      html,
+      projectName,
+      callbackUrl,
+      postText,
+      promptUsed,
+      claudePayload
+    );
+
     if (triggered) {
       await ctx.reply(`✅ *Render avviato!*\n📁 \`${projectName}\`\n⏱ Pronto in ~3 minuti`, { parse_mode: 'Markdown' });
     } else {
@@ -227,7 +255,7 @@ bot.command('start', (ctx) => ctx.reply(
   { parse_mode: 'Markdown' }
 ));
 bot.command('help', (ctx) => ctx.reply(
-  '📖 *Comandi:*\n\n⚽ `/prematch TeamA vs TeamB`\n🔴 `/live TeamA vs TeamB`\n🏆 `/postmatch TeamA vs TeamB`\n🔮 `/teaser TeamA vs TeamB`\n\n⏱ Render ~3 min | ☁️ Output: Dropbox /PitchPulse/',
+  '📖 *Comandi:*\n\n⚽ `/prematch TeamA vs TeamB`\n🔴 `/live TeamA vs TeamB`\n🏆 `/postmatch TeamA vs TeamB`\n🔮 `/teaser TeamA vs TeamB`\n\n⏱ Render ~3 min | ☁️ Output: Dropbox /[project]/',
   { parse_mode: 'Markdown' }
 ));
 bot.command('prematch', (ctx) => handleMoment(ctx, 'prematch'));
