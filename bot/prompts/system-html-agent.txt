@@ -197,6 +197,8 @@ The JSON uses these field names — always read them exactly:
 Always read src from meta.video_src in the JSON. Never hardcode the filename.
 CSS:
 .bg-video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0.15; mix-blend-mode:screen; z-index:0; }
+
+### CURIOSITY:
 Visual style: violet/cyan dominant, emoji-forward, high-energy. Badge color: accent pink #FF2D7A.
 Audio: PP-prematch.mp3
 
