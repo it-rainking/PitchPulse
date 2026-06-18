@@ -784,6 +784,72 @@ async function handleMoment(ctx, moment) {
   }
 }
 
+// ── Batch handler ────────────────────────────────────────
+const BATCH_MAX_JOBS = 10;
+const BATCH_DELAY_MS = 10000;
+const VALID_MOMENTS = ['prematch', 'live', 'postmatch', 'teaser'];
+
+async function handleBatch(ctx) {
+  const rawText = ctx.message.text.replace('/batch', '').trim();
+  if (!rawText) {
+    return ctx.reply(
+      '*Formato /batch:*\n```\nprematch Brazil vs Argentina\nlive France vs England\npostmatch Spain vs Germany\n```\n(max 10 righe, una per riga)',
+      { parse_mode: 'Markdown' }
+    );
+  }
+
+  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+
+  if (lines.length > BATCH_MAX_JOBS) {
+    return ctx.reply(`❌ Batch troppo grande: ${lines.length} righe (max ${BATCH_MAX_JOBS}). Riduci e riprova.`);
+  }
+
+  const jobs = [];
+  const invalidLines = [];
+
+  for (const line of lines) {
+    const m = line.match(/^(\w+)\s+(.+?)\s+vs\s+(.+)$/i);
+    if (!m) { invalidLines.push(`• \`${line}\` — formato non valido`); continue; }
+    const moment = m[1].toLowerCase();
+    const teamA = m[2].trim();
+    const teamB = m[3].trim();
+    if (!VALID_MOMENTS.includes(moment)) {
+      invalidLines.push(`• \`${line}\` — moment "${moment}" non valido (usa: ${VALID_MOMENTS.join(', ')})`);
+      continue;
+    }
+    jobs.push({ moment, teamA, teamB });
+  }
+
+  if (jobs.length === 0) {
+    const errMsg = invalidLines.length > 0
+      ? `❌ Nessuna riga valida:\n${invalidLines.join('\n')}`
+      : '❌ Nessuna riga valida nel batch.';
+    return ctx.reply(errMsg, { parse_mode: 'Markdown' });
+  }
+
+  let summary = `🚀 *Batch avviato:* ${jobs.length} job${jobs.length > 1 ? 's' : ''}`;
+  if (invalidLines.length > 0) {
+    summary += `\n⚠️ ${invalidLines.length} riga${invalidLines.length > 1 ? 'e' : ''} ignorata${invalidLines.length > 1 ? 'e' : ''}:\n${invalidLines.join('\n')}`;
+  }
+  await ctx.reply(summary, { parse_mode: 'Markdown' });
+
+  let launched = 0;
+  for (let i = 0; i < jobs.length; i++) {
+    const job = jobs[i];
+    const fakeCtx = {
+      message: { text: `/${job.moment} ${job.teamA} vs ${job.teamB}` },
+      reply: (text, opts) => ctx.reply(text, opts),
+    };
+    await handleMoment(fakeCtx, job.moment);
+    launched++;
+    if (i < jobs.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+    }
+  }
+
+  await ctx.reply(`✅ *Batch completato:* ${launched}/${jobs.length} job avviati`, { parse_mode: 'Markdown' });
+}
+
 // ── Callback render completato ────────────────────────────
 app.post('/callback', async (req, res) => {
   const { status, project, dropbox } = req.body;
@@ -805,11 +871,11 @@ app.get('/health', (req, res) => res.json({ ok: true, bot: 'PitchPulse' }));
 
 // ── Comandi bot ───────────────────────────────────────────
 bot.command('start', (ctx) => ctx.reply(
-  '*PitchPulse Bot* attivo!\n\n⚽ /prematch Brazil vs Argentina\n🔴 /live Brazil vs Argentina\n🏆 /postmatch Brazil vs Argentina\n🔮 /teaser Brazil vs Argentina\n🤯 /curiosity World Cup 2026\n📊 /highlights MD1',
+  '*PitchPulse Bot* attivo!\n\n⚽ /prematch Brazil vs Argentina\n🔴 /live Brazil vs Argentina\n🏆 /postmatch Brazil vs Argentina\n🔮 /teaser Brazil vs Argentina\n🤯 /curiosity World Cup 2026\n📊 /highlights MD1\n📋 /batch [vedi /help per formato]',
   { parse_mode: 'Markdown' }
 ));
 bot.command('help', (ctx) => ctx.reply(
-  '*Comandi:*\n\n⚽ /prematch TeamA vs TeamB\n🔴 /live TeamA vs TeamB\n🏆 /postmatch TeamA vs TeamB\n🔮 /teaser TeamA vs TeamB\n🤯 /curiosity [topic]\n📊 /highlights [MD1 / MD2 / data]\n\n⏱ Render circa 3 min | ☁️ Output: Dropbox /[project]/',
+  '*Comandi:*\n\n⚽ /prematch TeamA vs TeamB\n🔴 /live TeamA vs TeamB\n🏆 /postmatch TeamA vs TeamB\n🔮 /teaser TeamA vs TeamB\n🤯 /curiosity [topic]\n📊 /highlights [MD1 / MD2 / data]\n📋 /batch — lancia più post in sequenza:\n`prematch Brazil vs Argentina`\n`live France vs England`\n(una riga per job, max 10)\n\n⏱ Render circa 3 min | ☁️ Output: Dropbox /[project]/',
   { parse_mode: 'Markdown' }
 ));
 bot.command('prematch',   (ctx) => handleMoment(ctx, 'prematch'));
@@ -818,6 +884,7 @@ bot.command('postmatch',  (ctx) => handleMoment(ctx, 'postmatch'));
 bot.command('teaser',     (ctx) => handleMoment(ctx, 'teaser'));
 bot.command('curiosity',  (ctx) => handleCuriosity(ctx));
 bot.command('highlights', (ctx) => handleHighlights(ctx));
+bot.command('batch',      (ctx) => handleBatch(ctx));
 
 // ── Server / webhook ──────────────────────────────────────
 if (RAILWAY_PUBLIC_URL) {
