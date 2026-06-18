@@ -17,6 +17,35 @@ const PORT = process.env.PORT || 3000;
 
 const SYSTEM_PROMPT = fs.readFileSync(path.join(__dirname, 'prompts/system-html-agent.txt'), 'utf8');
 
+// ── Prompt Perplexity: istruzioni statiche per moment ─────
+// File esterni in prompts/perplexity/ - contengono solo testo
+// con placeholder {{...}}; bot.js fa il replace a runtime.
+const PPL_DIR = path.join(__dirname, 'prompts/perplexity');
+const PPL_INSTRUCTIONS = {
+  common:     fs.readFileSync(path.join(PPL_DIR, 'common-match-instructions.txt'), 'utf8'),
+  prematch:   fs.readFileSync(path.join(PPL_DIR, 'prematch-instructions.txt'), 'utf8'),
+  live:       fs.readFileSync(path.join(PPL_DIR, 'live-instructions.txt'), 'utf8'),
+  postmatch:  fs.readFileSync(path.join(PPL_DIR, 'postmatch-instructions.txt'), 'utf8'),
+  teaser:     fs.readFileSync(path.join(PPL_DIR, 'teaser-instructions.txt'), 'utf8'),
+  curiosity:  fs.readFileSync(path.join(PPL_DIR, 'curiosity-instructions.txt'), 'utf8'),
+  highlights: fs.readFileSync(path.join(PPL_DIR, 'highlights-instructions.txt'), 'utf8')
+};
+
+// ── Helper: sostituisce {{PLACEHOLDER}} in un template testuale ──
+function fillTemplate(template, vars) {
+  let out = template;
+  for (const [key, value] of Object.entries(vars)) {
+    out = out.split(`{{${key}}}`).join(value);
+  }
+  return out;
+}
+
+// ── Helper: spezza un blocco di testo multilinea in array di righe
+//    non vuote, per ricostruire l'array prompt.join('\n') esistente ──
+function linesOf(text) {
+  return text.split('\n').map(l => l.trimEnd()).filter(l => l.length > 0);
+}
+
 // ── ASSET REGISTRY ────────────────────────────────────────
 // Modifica qui per aggiungere/cambiare audio, video e path
 const ASSETS = {
@@ -54,6 +83,12 @@ function getAssetPaths(moment) {
 // ── Helper: data corrente formattata ──────────────────────
 function todayISO() {
   return new Date().toISOString().split('T')[0];
+}
+
+// ── Helper: timestamp UTC corrente, per i moment live ─────
+function nowUtcLabel() {
+  const iso = new Date().toISOString();        // "2026-06-17T21:43:07.123Z"
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
 }
 
 // ── Helper: genera copy social strutturato via Claude ─────
@@ -172,17 +207,13 @@ async function getCuriosityData(topic) {
     }
   };
 
+  const curiosityInstructions = fillTemplate(PPL_INSTRUCTIONS.curiosity, {
+    TOPIC: topic,
+    TODAY: today
+  });
+
   const prompt = [
-    `FIFA World Cup 2026 - curiosity card about: "${topic}".`,
-    `Today is ${today}. Research REAL verified facts and records from the web.`,
-    `Fill ALL fields marked FILL_* with accurate, surprising, data-driven content.`,
-    `Priority: find the most shocking/impressive number or stat about this topic.`,
-    `facts[]: three distinct surprising facts, each on a different angle. No repetition.`,
-    `cold_fact: the single most mind-blowing fact you found.`,
-    `caption_hook: STRICTLY max 12 words, punchy, data-first, TikTok tone. Count words before submitting.`,
-    `Do NOT append sources, citations or footnotes after the JSON.`,
-    `Return ONLY valid JSON - no markdown, no code fences, no explanation, no text before or after.`,
-    `Use this exact schema:`,
+    ...linesOf(curiosityInstructions),
     JSON.stringify(schema, null, 2)
   ].join('\n');
 
@@ -326,6 +357,7 @@ async function getMatchData(teamA, teamB, moment) {
   const codeB     = teamB.replace(/\s/g, '').substring(0, 3).toUpperCase();
   const hashMatch = `#${teamA.replace(/\s/g, '')}vs${teamB.replace(/\s/g, '')}`;
   const today     = todayISO();
+  const nowUtc    = nowUtcLabel();
   const assets    = getAssetPaths(moment);
 
   const schema = {
@@ -353,7 +385,11 @@ async function getMatchData(teamA, teamB, moment) {
       unit:        'FILL_UNIT_OR_NULL',
       description: 'FILL_REAL_CONTEXT'
     },
-    stats: [
+    stats: moment === 'live' ? [
+      { label: 'POSSESSION',       value: 'FILL_XX_PCT_VS_YY_PCT', context: 'FILL' },
+      { label: 'SHOTS ON TARGET',  value: 'FILL_X_VS_Y',           context: 'FILL' },
+      { label: 'FILL_CORNERS_FOULS_OR_XG', value: 'FILL',          context: 'FILL' }
+    ] : [
       { label: 'FILL', value: 'FILL', context: 'FILL' },
       { label: 'FILL', value: 'FILL', context: 'FILL' },
       { label: 'FILL', value: 'FILL', context: 'FILL' }
@@ -375,13 +411,16 @@ async function getMatchData(teamA, teamB, moment) {
       team: codeA,
       stat: 'FILL_REAL_STAT_ONE_SENTENCE'
     },
-    mvp:           null,
-    cold_verdict:  null,
-    record_broken: null,
-    next_match:    null,
-    score_a:       null,
-    score_b:       null,
-    minute:        null,
+    mvp:           moment === 'postmatch' ? { name: 'FILL_REAL_PLAYER', team: 'FILL_CODE', reason: 'FILL_ONE_SENTENCE_WHY' } : null,
+    cold_verdict:  moment === 'postmatch' ? 'FILL_ONE_SENTENCE_VERDICT_ON_THE_MATCH' : null,
+    record_broken: moment === 'postmatch' ? 'FILL_REAL_RECORD_TEXT_OR_null_IF_NONE' : null,
+    next_match:    moment === 'postmatch' ? 'FILL_NEXT_PHASE_OPPONENT_DATE_OR_null_IF_FINAL' : null,
+    match_status:  moment === 'live' ? 'FILL_not_started_OR_live_OR_halftime_OR_finished' : null,
+    score_a:       (moment === 'live' || moment === 'postmatch') ? 'FILL_REAL_INTEGER' : null,
+    score_b:       (moment === 'live' || moment === 'postmatch') ? 'FILL_REAL_INTEGER' : null,
+    minute:        moment === 'live' ? 'FILL_REAL_MINUTE_OR_HT_OR_FT' : (moment === 'postmatch' ? 'FT' : null),
+    source_note:   moment === 'live' ? 'FILL_SOURCE_NAME_AND_TIMESTAMP_OR_MINUTE_REPORTED' : null,
+    key_events:    moment === 'live' ? [] : null,
     caption_hook:  'FILL_STRICTLY_MAX_12_WORDS_PUNCHY_DATA_FIRST',
     hashtags: {
       match:            hashMatch,
@@ -391,16 +430,20 @@ async function getMatchData(teamA, teamB, moment) {
     }
   };
 
+  const momentInstructions = fillTemplate(PPL_INSTRUCTIONS[moment] || '', {
+    NOW_UTC: nowUtc,
+    TODAY:   today,
+    TEAM_A:  teamA,
+    TEAM_B:  teamB
+  });
+
+  const commonInstructions = PPL_INSTRUCTIONS.common;
+
   const prompt = [
     `FIFA World Cup 2026 - ${momentLabel}: ${teamA} vs ${teamB}.`,
     `Today is ${today}. Research REAL verified data from the web.`,
-    `Fill ALL fields marked FILL_* with accurate real data.`,
-    `match.team_a.name and match.team_b.name must be the full official country name (e.g. "France", "Senegal"), not the code.`,
-    `H2H: research all historical meetings between these two teams. If no meetings exist set values to 0 and last_meeting to null.`,
-    `caption_hook: STRICTLY max 12 words, punchy, data-first, TikTok tone. Count words before submitting.`,
-    `Do NOT append sources, citations or footnotes after the JSON.`,
-    `Return ONLY valid JSON - no markdown, no code fences, no explanation, no text before or after.`,
-    `Use this exact schema:`,
+    ...linesOf(momentInstructions),
+    ...linesOf(commonInstructions),
     JSON.stringify(schema, null, 2)
   ].join('\n');
 
@@ -441,6 +484,7 @@ async function getMatchData(teamA, teamB, moment) {
 // ── Perplexity: ricerca risultati giornata ────────────────
 async function getHighlightsData(matchday) {
   const today = todayISO();
+  const nowUtc = nowUtcLabel();
   const assets = getAssetPaths('highlights');
 
   const schema = {
@@ -467,8 +511,8 @@ async function getHighlightsData(matchday) {
       {
         team_a:      { name: 'FILL_FULL_NAME', code: 'FILL_CODE', flag_emoji: 'FILL_EMOJI' },
         team_b:      { name: 'FILL_FULL_NAME', code: 'FILL_CODE', flag_emoji: 'FILL_EMOJI' },
-        score_a:     0,
-        score_b:     0,
+        score_a:     'FILL_REAL_INTEGER_OR_null_IF_NS',
+        score_b:     'FILL_REAL_INTEGER_OR_null_IF_NS',
         status:      'FILL_FT_OR_LIVE_OR_NS',
         highlight:   'FILL_KEY_MOMENT_MAX_8_WORDS_OR_NULL'
       }
@@ -476,7 +520,7 @@ async function getHighlightsData(matchday) {
     top_scorer: {
       name:   'FILL_PLAYER_NAME_OR_NULL',
       team:   'FILL_TEAM_CODE_OR_NULL',
-      goals:  0,
+      goals:  'FILL_REAL_INTEGER_OR_null_IF_NONE',
       detail: 'FILL_ONE_LINE_STAT_OR_NULL'
     },
     cold_fact: {
@@ -493,17 +537,14 @@ async function getHighlightsData(matchday) {
     }
   };
 
+  const highlightsInstructions = fillTemplate(PPL_INSTRUCTIONS.highlights, {
+    MATCHDAY: matchday,
+    NOW_UTC:  nowUtc,
+    TODAY:    today
+  });
+
   const prompt = [
-    `FIFA World Cup 2026 — highlights recap for: "${matchday}".`,
-    `Today is ${today}. Research ALL matches played on this matchday from the web.`,
-    `Fill the matches[] array with EVERY match of this matchday — do not omit any.`,
-    `For each match: fill real scores, real team names, flag emojis, and a key highlight max 8 words (goal scorer, red card, penalty, etc). If match not yet played set status to "NS" and scores to null.`,
-    `headline.value: total goals scored across ALL matches today.`,
-    `top_scorer: player with most goals today. If tied pick the most notable. Set to null if no goals yet.`,
-    `caption_hook: STRICTLY max 12 words, punchy, data-first, TikTok tone. Count words before submitting.`,
-    `Do NOT append sources, citations or footnotes after the JSON.`,
-    `Return ONLY valid JSON — no markdown, no code fences, no explanation, no text before or after.`,
-    `Use this exact schema (expand matches[] with all real matches):`,
+    ...linesOf(highlightsInstructions),
     JSON.stringify(schema, null, 2)
   ].join('\n');
 
@@ -795,3 +836,13 @@ if (RAILWAY_PUBLIC_URL) {
 console.log('PitchPulse Bot avviato');
 process.once('SIGINT',  () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
+// ── Export condizionale per testing ───────────────────────
+// Se questo file viene RICHIESTO da un altro script (es. test-live-real.js)
+// invece di essere lanciato direttamente (node bot.js), esponiamo le funzioni
+// pure di costruzione prompt/dati senza interferire con l'avvio reale del bot
+// su Railway, che continua a partire normalmente con `node bot.js`.
+if (require.main !== module) {
+  module.exports = { getMatchData, getCuriosityData, getHighlightsData, generateHTML };
+}
+
