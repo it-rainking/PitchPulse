@@ -130,6 +130,9 @@ The JSON uses these field names — always read them exactly:
 - player_watch.name / player_watch.team / player_watch.stat
 - stats[0..2].label / stats[0..2].value / stats[0..2].context
 - caption_hook / score_a / score_b / minute
+- match_status (live only — "not_started" | "live" | "halftime" | "finished", null for other moments)
+- key_events[] (live only — array of {minute, type, team, player, detail}; type is "goal" | "red_card" | "yellow_card" | "penalty" | "var"; empty array [] if no events yet)
+- source_note (live only — internal debug string, NEVER render this on screen, do not include in any visible element)
 - mvp / cold_verdict / record_broken / next_match (null = display:none)
 
 ## TEMPLATES
@@ -146,15 +149,27 @@ The JSON uses these field names — always read them exactly:
 9. Footer: @PitchPulse + hashtags
 
 ### LIVE:
-1. Header: logo + PITCHPULSE + red LIVE badge pulsing
+1. Header: logo + PITCHPULSE + status badge — badge text and pulse color depend on match_status:
+   - "not_started" -> badge "KICKOFF SOON" (muted gray, no pulse)
+   - "live" -> badge "LIVE" (red #FF3B3B, pulsing)
+   - "halftime" -> badge "HALF TIME" (gold, no pulse)
+   - "finished" -> badge "FULL TIME" (gold, no pulse)
+   If match_status is null, default to LIVE red pulsing badge (legacy fallback).
 2. Tournament + phase
-3. Scoreboard: flag + team_a.code | score_a - score_b | minute red | flag + team_b.code
+3. Scoreboard: flag + team_a.code | score_a - score_b | minute (red bg badge, shows minute value as-is e.g. "67", "45+2", "HT", "FT") | flag + team_b.code
 4. Red divider
-5. Live stat card
-6. Stats bars: possession + shots
-7. Key moment card (red border)
+5. Live stat card (headline.eyebrow + headline.value + headline.description)
+6. Stats bars: possession + shots on target, read from stats[0] and stats[1] (label/value/context as provided)
+7. Key events ticker — render ONLY if key_events array is non-empty, else display:none entire section:
+   Vertical list, max 4 most recent events shown (if more than 4, show the last 4 chronologically).
+   Each event row: minute badge (small, red bg, e.g. "67'") + icon by type (⚽ goal, 🟥 red_card, 🟨 yellow_card, 🎯 penalty, 📺 var) + player name (Barlow Condensed 26px white) + team code (muted 22px) + detail (Barlow 24px muted, one line).
+   Row style: glass background, left border 3px in --live color, fadeInUp staggered 0.15s each.
+   Section eyebrow label above the list: "KEY MOMENTS" (Barlow Condensed 26px, --live color).
 8. Cold fact
 9. Footer
+
+   NOTE: source_note exists in the JSON for internal QA only — it must NEVER appear
+   anywhere in the rendered HTML, not even hidden or in comments containing real text from it.
 
 ### POST-MATCH:
 1. Header: logo + PITCHPULSE + FULL TIME gold badge
