@@ -1,0 +1,3 @@
+No moment-specific instructions beyond common-match-instructions.txt at this time.
+NOTE: this moment has not yet undergone the same audit applied to live/postmatch/highlights.
+When audited, add moment-specific freshness/consistency rules here following the same pattern.
