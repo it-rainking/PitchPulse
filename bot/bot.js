@@ -793,7 +793,7 @@ async function handleBatch(ctx) {
   const rawText = ctx.message.text.replace('/batch', '').trim();
   if (!rawText) {
     return ctx.reply(
-      '*Formato /batch:*\n```\nprematch Brazil vs Argentina\nlive France vs England\npostmatch Spain vs Germany\n```\n(max 10 righe, una per riga)',
+      '*Formato /batch:*\n```\nprematch Brazil vs Argentina\nlive France vs England\npostmatch Spain vs Germany\nhighlights MD1\nhighlights group A\nhighlights 2026-06-18\n```\n(max 10 righe, una per riga)',
       { parse_mode: 'Markdown' }
     );
   }
@@ -808,13 +808,18 @@ async function handleBatch(ctx) {
   const invalidLines = [];
 
   for (const line of lines) {
+    const hm = line.match(/^highlights\s+(.+)$/i);
+    if (hm) {
+      jobs.push({ moment: 'highlights', query: hm[1].trim() });
+      continue;
+    }
     const m = line.match(/^(\w+)\s+(.+?)\s+vs\s+(.+)$/i);
     if (!m) { invalidLines.push(`• \`${line}\` — formato non valido`); continue; }
     const moment = m[1].toLowerCase();
     const teamA = m[2].trim();
     const teamB = m[3].trim();
     if (!VALID_MOMENTS.includes(moment)) {
-      invalidLines.push(`• \`${line}\` — moment "${moment}" non valido (usa: ${VALID_MOMENTS.join(', ')})`);
+      invalidLines.push(`• \`${line}\` — moment "${moment}" non valido (usa: ${VALID_MOMENTS.join(', ')}, highlights <MD>)`);
       continue;
     }
     jobs.push({ moment, teamA, teamB });
@@ -836,11 +841,19 @@ async function handleBatch(ctx) {
   let launched = 0;
   for (let i = 0; i < jobs.length; i++) {
     const job = jobs[i];
-    const fakeCtx = {
-      message: { text: `/${job.moment} ${job.teamA} vs ${job.teamB}` },
-      reply: (text, opts) => ctx.reply(text, opts),
-    };
-    await handleMoment(fakeCtx, job.moment);
+    if (job.moment === 'highlights') {
+      const fakeCtx = {
+        message: { text: `/highlights ${job.query}` },
+        reply: (text, opts) => ctx.reply(text, opts),
+      };
+      await handleHighlights(fakeCtx);
+    } else {
+      const fakeCtx = {
+        message: { text: `/${job.moment} ${job.teamA} vs ${job.teamB}` },
+        reply: (text, opts) => ctx.reply(text, opts),
+      };
+      await handleMoment(fakeCtx, job.moment);
+    }
     launched++;
     if (i < jobs.length - 1) {
       await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
@@ -875,7 +888,7 @@ bot.command('start', (ctx) => ctx.reply(
   { parse_mode: 'Markdown' }
 ));
 bot.command('help', (ctx) => ctx.reply(
-  '*Comandi:*\n\n⚽ /prematch TeamA vs TeamB\n🔴 /live TeamA vs TeamB\n🏆 /postmatch TeamA vs TeamB\n🔮 /teaser TeamA vs TeamB\n🤯 /curiosity [topic]\n📊 /highlights [MD1 / MD2 / data]\n📋 /batch — lancia più post in sequenza:\n`prematch Brazil vs Argentina`\n`live France vs England`\n(una riga per job, max 10)\n\n⏱ Render circa 3 min | ☁️ Output: Dropbox /[project]/',
+  '*Comandi:*\n\n⚽ /prematch TeamA vs TeamB\n🔴 /live TeamA vs TeamB\n🏆 /postmatch TeamA vs TeamB\n🔮 /teaser TeamA vs TeamB\n🤯 /curiosity [topic]\n📊 /highlights [MD1 / group A / data / ...]\n📋 /batch — lancia più post in sequenza:\n`prematch Brazil vs Argentina`\n`live France vs England`\n`highlights MD1`\n`highlights group A`\n`highlights 2026-06-18`\n(una riga per job, max 10)\n\n⏱ Render circa 3 min | ☁️ Output: Dropbox /[project]/',
   { parse_mode: 'Markdown' }
 ));
 bot.command('prematch',   (ctx) => handleMoment(ctx, 'prematch'));
