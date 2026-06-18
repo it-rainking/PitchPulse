@@ -1,0 +1,14 @@
+FIFA World Cup 2026 - group highlights for: "{{GROUP}}".
+RIGHT NOW it is {{NOW_UTC}}. Today is {{TODAY}}.
+Research the REAL, CURRENT state of {{GROUP}} in the FIFA World Cup 2026 group stage.
+Fill standings[] with ALL 4 teams in current standings order (1st to 4th by points, then goal difference, then goals scored).
+For each team in standings: pos (integer 1-4), played, won, drawn, lost, gf (goals for as integer), ga (goals against as integer), pts (points as integer). All values must be real integers, never strings.
+Fill played_matches[] with ALL matches already played in this group — include REAL final scores as integers.
+highlight: a key moment max 8 words for each played match (goal scorer, red card, decisive penalty). Set to null if nothing notable.
+Fill upcoming_matches[] with ALL remaining unplayed matches in this group — include matchday label (MD2 or MD3) and kickoff local time with timezone.
+If all group matches are already played, set upcoming_matches to an empty array [].
+cold_fact: the single most interesting or surprising fact about this group today (a record, historical curiosity, or notable stat). One sentence max.
+caption_hook: STRICTLY max 12 words, punchy, data-first, TikTok tone. Count words before submitting.
+Do NOT append sources, citations or footnotes after the JSON.
+Return ONLY valid JSON - no markdown, no code fences, no explanation, no text before or after.
+Use this exact schema (fill all real data):

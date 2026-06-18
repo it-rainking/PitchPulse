@@ -28,7 +28,8 @@ const PPL_INSTRUCTIONS = {
   postmatch:  fs.readFileSync(path.join(PPL_DIR, 'postmatch-instructions.txt'), 'utf8'),
   teaser:     fs.readFileSync(path.join(PPL_DIR, 'teaser-instructions.txt'), 'utf8'),
   curiosity:  fs.readFileSync(path.join(PPL_DIR, 'curiosity-instructions.txt'), 'utf8'),
-  highlights: fs.readFileSync(path.join(PPL_DIR, 'highlights-instructions.txt'), 'utf8')
+  highlights: fs.readFileSync(path.join(PPL_DIR, 'highlights-instructions.txt'), 'utf8'),
+  group_hl:   fs.readFileSync(path.join(PPL_DIR, 'group_hl-instructions.txt'), 'utf8')
 };
 
 // ── Helper: sostituisce {{PLACEHOLDER}} in un template testuale ──
@@ -60,7 +61,8 @@ const ASSETS = {
     postmatch:  'PP-postmatch.mp3',
     teaser:     'PP-prematch.mp3',
     curiosity:  'PP-prematch.mp3',
-    highlights: 'PP-postmatch.mp3'
+    highlights: 'PP-postmatch.mp3',
+    group_hl:   'PP-postmatch.mp3'
   },
   video: [
     'Goal-1.mp4',
@@ -675,6 +677,201 @@ ${JSON.stringify(jsonData, null, 2)}`;
   }
 }
 
+// ── Perplexity: ricerca stato girone ─────────────────────
+async function getGroupHlData(group) {
+  const today  = todayISO();
+  const nowUtc = nowUtcLabel();
+  const assets = getAssetPaths('group_hl');
+
+  const schema = {
+    meta: {
+      moment:     'group_hl',
+      brand:      'PitchPulse',
+      version:    '2.0',
+      tournament: 'FIFA World Cup 2026',
+      audio_src:  assets.audio_src,
+      video_src:  assets.video_src
+    },
+    group: {
+      name:     'FILL_E.G._GROUP_A',
+      matchday: 'FILL_MD1_OR_MD2_OR_MD3',
+      stage:    'FILL_E.G._GROUP_STAGE_MATCHDAY_1'
+    },
+    standings: [
+      { pos: 1, team: { name: 'FILL_FULL_NAME', code: 'FILL_3_LETTER', flag_emoji: 'FILL_EMOJI' }, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, pts: 0 },
+      { pos: 2, team: { name: 'FILL_FULL_NAME', code: 'FILL_3_LETTER', flag_emoji: 'FILL_EMOJI' }, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, pts: 0 },
+      { pos: 3, team: { name: 'FILL_FULL_NAME', code: 'FILL_3_LETTER', flag_emoji: 'FILL_EMOJI' }, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, pts: 0 },
+      { pos: 4, team: { name: 'FILL_FULL_NAME', code: 'FILL_3_LETTER', flag_emoji: 'FILL_EMOJI' }, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, pts: 0 }
+    ],
+    played_matches: [
+      {
+        team_a:    { name: 'FILL_FULL_NAME', code: 'FILL_CODE', flag_emoji: 'FILL_EMOJI' },
+        team_b:    { name: 'FILL_FULL_NAME', code: 'FILL_CODE', flag_emoji: 'FILL_EMOJI' },
+        score_a:   'FILL_REAL_INTEGER',
+        score_b:   'FILL_REAL_INTEGER',
+        highlight: 'FILL_KEY_MOMENT_MAX_8_WORDS_OR_NULL'
+      }
+    ],
+    upcoming_matches: [
+      {
+        team_a:        { name: 'FILL_FULL_NAME', code: 'FILL_CODE', flag_emoji: 'FILL_EMOJI' },
+        team_b:        { name: 'FILL_FULL_NAME', code: 'FILL_CODE', flag_emoji: 'FILL_EMOJI' },
+        matchday:      'FILL_MD2_OR_MD3',
+        kickoff_local: 'FILL_DATE_TIME_TZ'
+      }
+    ],
+    cold_fact: {
+      emoji: 'FILL_EMOJI',
+      label: 'DID YOU KNOW',
+      text:  'FILL_MOST_INTERESTING_GROUP_FACT_ONE_SENTENCE'
+    },
+    caption_hook: 'FILL_STRICTLY_MAX_12_WORDS_PUNCHY_DATA_FIRST',
+    hashtags: {
+      group:            `#WC2026${group.replace(/\s/g, '')}`,
+      tournament:       '#WorldCup2026 #WC2026',
+      brand_pitchpulse: '#PitchPulse',
+      generic:          '#Football #Soccer #FIFA #GroupStage'
+    }
+  };
+
+  const groupHlInstructions = fillTemplate(PPL_INSTRUCTIONS.group_hl, {
+    GROUP:   group,
+    NOW_UTC: nowUtc,
+    TODAY:   today
+  });
+
+  const prompt = [
+    ...linesOf(groupHlInstructions),
+    JSON.stringify(schema, null, 2)
+  ].join('\n');
+
+  const res = await fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model:      'sonar-pro',
+      messages:   [{ role: 'user', content: prompt }],
+      max_tokens: 3000
+    })
+  });
+
+  const data = await res.json();
+  if (!data.choices || !data.choices[0]) {
+    throw new Error('Perplexity error: ' + JSON.stringify(data));
+  }
+
+  let text = data.choices[0].message.content;
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('Nessun JSON trovato (group_hl). Risposta: ' + text.substring(0, 200));
+  }
+
+  try {
+    return { data: JSON.parse(jsonMatch[0]), promptUsed: prompt };
+  } catch (parseErr) {
+    console.error('[Perplexity/group_hl] JSON non valido:', jsonMatch[0].substring(0, 300));
+    throw new Error('JSON Perplexity group_hl non parsabile: ' + parseErr.message);
+  }
+}
+
+// ── Handler group_hl ──────────────────────────────────────
+async function handleGroupHl(ctx) {
+  const input = ctx.message.text.replace('/group_hl', '').trim();
+  if (!input) return ctx.reply('Formato: /group_hl Group A\nEsempi: /group_hl Group A | /group_hl Group C | /group_hl Group L');
+
+  const slug = input.replace(/\s/g, '').substring(0, 8).toUpperCase();
+  const projectName = `group_hl-${slug}-${Date.now()}`;
+
+  await ctx.reply(`📊 *GROUP HIGHLIGHTS* — ${input}\nAvvio pipeline...`, { parse_mode: 'Markdown' });
+
+  try {
+    await ctx.reply('🔍 Raccogliendo dati girone...');
+    const { data: jsonData, promptUsed } = await getGroupHlData(input);
+
+    await ctx.reply('🎨 Generando HTML e copy...');
+
+    const copyPrompt = `You are a social media copywriter for PitchPulse, a football analytics brand targeting 18-28 on TikTok and Instagram Reels.
+
+Write a social copy block for this GROUP HIGHLIGHTS card. Use ONLY data from the JSON below.
+Tone: high energy, punchy, data-first, never neutral.
+
+Return ONLY this exact format, no extra text:
+
+=== PITCHPULSE - GROUP HIGHLIGHTS COPY ===
+Group: [group.name] — [group.stage]
+Tournament: [meta.tournament]
+
+--- TIKTOK / REELS CAPTION ---
+[caption_hook from JSON - STRICTLY max 12 words]
+
+[Standings snapshot: 1. FLAG Code Xpts | 2. FLAG Code Xpts | 3. FLAG Code Xpts | 4. FLAG Code Xpts]
+[1 line on the most notable played match result or cold_fact]
+[1 CTA - e.g. "Follow @PitchPulse for every group update 📊"]
+
+--- HASHTAGS ---
+[hashtags.group] [hashtags.tournament] [hashtags.brand_pitchpulse] [hashtags.generic]
+#groupstage #standings #WC2026group
+
+JSON:
+${JSON.stringify(jsonData, null, 2)}`;
+
+    const [{ html, claudePayload }, postText] = await Promise.all([
+      generateHTML(jsonData, 'group_hl'),
+      (async () => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000);
+        try {
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+              'x-api-key':          ANTHROPIC_API_KEY,
+              'anthropic-version':  '2023-06-01',
+              'Content-Type':       'application/json'
+            },
+            body: JSON.stringify({
+              model:      'claude-haiku-4-5',
+              max_tokens: 1000,
+              messages:   [{ role: 'user', content: copyPrompt }]
+            })
+          });
+          clearTimeout(timeout);
+          const data = await res.json();
+          if (!data.content || !data.content[0]) throw new Error('Claude copy error');
+          return data.content[0].text.trim();
+        } catch (err) {
+          clearTimeout(timeout);
+          return `=== PITCHPULSE - GROUP HIGHLIGHTS COPY ===\nGroup: ${input}\n\n--- CAPTION ---\n${jsonData.caption_hook || ''}\n\n--- HASHTAGS ---\n${Object.values(jsonData.hashtags || {}).join(' ')}`;
+        }
+      })()
+    ]);
+
+    await ctx.reply('🎬 Avviando render...');
+    const base = RAILWAY_PUBLIC_URL || '';
+    const callbackUrl = base ? `${base.startsWith('https') ? '' : 'https://'}${base}/callback` : '';
+
+    const triggered = await triggerRender(html, projectName, callbackUrl, postText, promptUsed, claudePayload);
+
+    if (triggered) {
+      await ctx.reply(`✅ *Render avviato!*\n📁 \`${projectName}\`\nPronto in circa 3 minuti`, { parse_mode: 'Markdown' });
+    } else {
+      await ctx.reply('❌ Errore GitHub Actions');
+    }
+  } catch (err) {
+    console.error('[group_hl] Error:', err.message);
+    if (err.name === 'AbortError' || err.message.includes('aborted')) {
+      await ctx.reply('⏱ Timeout. Riprova con /group_hl');
+    } else {
+      await ctx.reply(`❌ Errore: ${err.message}`);
+    }
+  }
+}
+
 // ── Claude: genera HTML ───────────────────────────────────
 async function generateHTML(jsonData, moment) {
   const controller = new AbortController();
@@ -804,8 +1001,8 @@ async function runBatchJobs(jobs, chatId) {
     if (batchState) batchState.done = i;
 
     const job = jobs[i];
-    const label = job.moment === 'highlights'
-      ? `highlights ${job.query}`
+    const label = (job.moment === 'highlights' || job.moment === 'group_hl')
+      ? `${job.moment} ${job.query}`
       : `${job.moment} ${job.teamA} vs ${job.teamB}`;
 
     await bot.telegram.sendMessage(chatId,
@@ -818,6 +1015,11 @@ async function runBatchJobs(jobs, chatId) {
       if (job.moment === 'highlights') {
         await handleHighlights({
           message: { text: `/highlights ${job.query}` },
+          reply: replyFn,
+        });
+      } else if (job.moment === 'group_hl') {
+        await handleGroupHl({
+          message: { text: `/group_hl ${job.query}` },
           reply: replyFn,
         });
       } else {
@@ -846,7 +1048,7 @@ async function handleBatch(ctx) {
   const rawText = ctx.message.text.replace('/batch', '').trim();
   if (!rawText) {
     return ctx.reply(
-      '*Formato /batch:*\n```\nprematch Brazil vs Argentina\nlive France vs England\npostmatch Spain vs Germany\nhighlights MD1\nhighlights group A\nhighlights 2026-06-18\n```\n(max 10 righe, una per riga)\nUsa /batchstop per fermare.',
+      '*Formato /batch:*\n```\nprematch Brazil vs Argentina\nlive France vs England\npostmatch Spain vs Germany\nhighlights MD1\ngroup_hl Group A\ngroup_hl Group C\n```\n(max 10 righe, una per riga)\nUsa /batchstop per fermare.',
       { parse_mode: 'Markdown' }
     );
   }
@@ -870,13 +1072,18 @@ async function handleBatch(ctx) {
       jobs.push({ moment: 'highlights', query: hm[1].trim() });
       continue;
     }
+    const ghm = line.match(/^group_hl\s+(.+)$/i);
+    if (ghm) {
+      jobs.push({ moment: 'group_hl', query: ghm[1].trim() });
+      continue;
+    }
     const m = line.match(/^(\w+)\s+(.+?)\s+vs\s+(.+)$/i);
     if (!m) { invalidLines.push(`• \`${line}\` — formato non valido`); continue; }
     const moment = m[1].toLowerCase();
     const teamA = m[2].trim();
     const teamB = m[3].trim();
     if (!VALID_MOMENTS.includes(moment)) {
-      invalidLines.push(`• \`${line}\` — moment "${moment}" non valido (usa: ${VALID_MOMENTS.join(', ')}, highlights <MD>)`);
+      invalidLines.push(`• \`${line}\` — moment "${moment}" non valido (usa: ${VALID_MOMENTS.join(', ')}, highlights <MD>, group_hl <Group X>)`);
       continue;
     }
     jobs.push({ moment, teamA, teamB });
@@ -946,11 +1153,11 @@ app.get('/health', (req, res) => res.json({ ok: true, bot: 'PitchPulse' }));
 
 // ── Comandi bot ───────────────────────────────────────────
 bot.command('start', (ctx) => ctx.reply(
-  '*PitchPulse Bot* attivo!\n\n⚽ /prematch Brazil vs Argentina\n🔴 /live Brazil vs Argentina\n🏆 /postmatch Brazil vs Argentina\n🔮 /teaser Brazil vs Argentina\n🤯 /curiosity World Cup 2026\n📊 /highlights MD1\n📋 /batch [vedi /help per formato]\n🛑 /batchstop — ferma il batch in corso',
+  '*PitchPulse Bot* attivo!\n\n⚽ /prematch Brazil vs Argentina\n🔴 /live Brazil vs Argentina\n🏆 /postmatch Brazil vs Argentina\n🔮 /teaser Brazil vs Argentina\n🤯 /curiosity World Cup 2026\n📊 /highlights MD1\n🗂 /group_hl Group A\n📋 /batch [vedi /help per formato]\n🛑 /batchstop — ferma il batch in corso',
   { parse_mode: 'Markdown' }
 ));
 bot.command('help', (ctx) => ctx.reply(
-  '*Comandi:*\n\n⚽ /prematch TeamA vs TeamB\n🔴 /live TeamA vs TeamB\n🏆 /postmatch TeamA vs TeamB\n🔮 /teaser TeamA vs TeamB\n🤯 /curiosity [topic]\n📊 /highlights [MD1 / group A / data / ...]\n📋 /batch — lancia più post in sequenza (uno alla volta):\n`prematch Brazil vs Argentina`\n`live France vs England`\n`highlights MD1`\n`highlights group A`\n`highlights 2026-06-18`\n(una riga per job, max 10)\n🛑 /batchstop — ferma il batch corrente\n\n⏱ Render circa 3 min | ☁️ Output: Dropbox /[project]/',
+  '*Comandi:*\n\n⚽ /prematch TeamA vs TeamB\n🔴 /live TeamA vs TeamB\n🏆 /postmatch TeamA vs TeamB\n🔮 /teaser TeamA vs TeamB\n🤯 /curiosity [topic]\n📊 /highlights [MD1 / data / ...]\n🗂 /group_hl [Group A / Group C / ...]\n📋 /batch — lancia più post in sequenza (uno alla volta):\n`prematch Brazil vs Argentina`\n`live France vs England`\n`highlights MD1`\n`group_hl Group A`\n`group_hl Group C`\n(una riga per job, max 10)\n🛑 /batchstop — ferma il batch corrente\n\n⏱ Render circa 3 min | ☁️ Output: Dropbox /[project]/',
   { parse_mode: 'Markdown' }
 ));
 bot.command('prematch',   (ctx) => handleMoment(ctx, 'prematch'));
@@ -959,6 +1166,7 @@ bot.command('postmatch',  (ctx) => handleMoment(ctx, 'postmatch'));
 bot.command('teaser',     (ctx) => handleMoment(ctx, 'teaser'));
 bot.command('curiosity',  (ctx) => handleCuriosity(ctx));
 bot.command('highlights', (ctx) => handleHighlights(ctx));
+bot.command('group_hl',  (ctx) => handleGroupHl(ctx));
 bot.command('batch',      (ctx) => handleBatch(ctx));
 bot.command('batchstop',  (ctx) => handleBatchStop(ctx));
 
@@ -986,6 +1194,6 @@ process.once('SIGTERM', () => bot.stop('SIGTERM'));
 // pure di costruzione prompt/dati senza interferire con l'avvio reale del bot
 // su Railway, che continua a partire normalmente con `node bot.js`.
 if (require.main !== module) {
-  module.exports = { getMatchData, getCuriosityData, getHighlightsData, generateHTML };
+  module.exports = { getMatchData, getCuriosityData, getHighlightsData, getGroupHlData, generateHTML };
 }
 

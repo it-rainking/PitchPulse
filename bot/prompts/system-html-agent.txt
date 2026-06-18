@@ -11,6 +11,7 @@ Read meta.moment in the JSON:
 - "teaser"     -> TEASER template
 - "curiosity"  -> CURIOSITY template
 - "highlights" -> HIGHLIGHTS template
+- "group_hl"   -> GROUP_HL template
 
 ## CRITICAL HTML RULES
 
@@ -252,3 +253,38 @@ Sections:
 8. Footer: @PitchPulse + hashtags
 
 OVERFLOW NOTE: matches[] can have 4-8 rows. Keep each row max 80px height. Reduce padding if needed to fit within 1920px total.
+
+### GROUP_HL:
+Visual style: gold dominant, standings table feel, structured data layout. Badge color: gold #FFD166.
+Audio: PP-postmatch.mp3 (via meta.audio_src)
+
+JSON fields for this template:
+- group.name / group.matchday / group.stage
+- standings[4]: pos, team{name,code,flag_emoji}, played, won, drawn, lost, gf, ga, pts
+- played_matches[]: team_a{name,code,flag_emoji}, team_b{name,code,flag_emoji}, score_a, score_b, highlight
+- upcoming_matches[]: team_a{name,code,flag_emoji}, team_b{name,code,flag_emoji}, matchday, kickoff_local
+- cold_fact.emoji / cold_fact.label / cold_fact.text
+- caption_hook / hashtags
+
+Sections:
+1. Header: logo + PITCHPULSE + pulsing gold dot + badge "[group.name] RECAP 📊" (gold #FFD166)
+2. Tournament label + group.stage (Barlow Condensed 28px muted)
+3. Standings table (full width):
+   Header row: # | TEAM | P | W | D | L | GF | GA | PTS — Barlow Condensed 22px muted, border-bottom 1px rgba(255,209,102,0.20)
+   Each team row (4 rows): pos (22px muted) | flag_emoji + code (Barlow Condensed 28px white, flex gap 8px) | played won drawn lost (22px muted, equal-width cols) | gf ga (22px muted) | pts (Barlow Condensed 32px gold)
+   Row separator: 1px rgba(255,209,102,0.10). Top team (pos=1): left border 3px solid gold, bg rgba(255,209,102,0.05).
+   Row height max 56px. Table container: glass background, clip-path corner cut.
+4. Gold divider
+5. Played matches — one compact row per match:
+   flag_emoji + team_a.code | score_a – score_b | team_b.code + flag_emoji (Bebas Neue 48px for codes, score in 56px gold)
+   highlight below score: Barlow 22px cyan italic (display:none if null)
+   Row bg: glass rgba(255,255,255,0.04), border-bottom rgba(255,209,102,0.10). Row max height 72px.
+   If played_matches has more than 2 entries, reduce highlight font to 20px and row padding to 10px.
+6. Upcoming matches — compact list (display:none if upcoming_matches is empty []):
+   Eyebrow "NEXT UP" (Barlow Condensed 26px cyan, margin-bottom 8px)
+   Each row: matchday badge (gold bg 18px Barlow Condensed, 6px padding) | flag_emoji + team_a.code vs team_b.code + flag_emoji (28px white) | kickoff_local (Barlow 22px muted)
+   Row height max 48px. Show max 3 rows.
+7. Cold fact: cold_fact.emoji (36px) + cold_fact.label (gold Barlow Condensed 26px) + cold_fact.text (white italic Barlow 26px)
+8. Footer: @PitchPulse + hashtags
+
+OVERFLOW NOTE: standings (4 × 56px) + played_matches (max 2 × 72px) + upcoming (max 3 × 48px) + header/footer/dividers ≈ 1150px total — fits within safe zone. If played_matches > 4 entries, show only the 4 most recent.
