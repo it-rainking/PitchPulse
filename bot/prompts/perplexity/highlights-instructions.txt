@@ -1,0 +1,14 @@
+FIFA World Cup 2026 - highlights recap for: "{{MATCHDAY}}".
+RIGHT NOW it is {{NOW_UTC}}. Research the REAL, CURRENT status of EVERY match on this matchday as of this exact moment - some may be finished, some live, some not yet started.
+Today is {{TODAY}}. Research ALL matches scheduled or played on this matchday from the web.
+Fill the matches[] array with EVERY match of this matchday - do not omit any, regardless of status.
+For each match, determine status independently: "FT" if finished, "LIVE" if currently being played, "NS" if not yet started.
+If status is "FT" or "LIVE": score_a and score_b MUST be the real current integer goals for each team, cross-checked against a live source if the match is still in progress.
+If status is "NS": set score_a and score_b to the JSON value null (not the string "null", not 0) since the match has not started.
+highlight: a real key moment max 8 words (goal scorer, red card, penalty, etc) for matches with status "FT" or "LIVE". Set to null for "NS" matches.
+headline.value: total real goals scored so far across ALL matches with status "FT" or "LIVE" today - do not count matches that have not started.
+top_scorer: player with most real goals today across all matches played/in progress. If tied pick the most notable. If no goals have been scored yet today, set name, team, goals and detail all to null.
+caption_hook: STRICTLY max 12 words, punchy, data-first, TikTok tone, and it must reflect the actual mix of finished/live/not-started matches - do not claim the day is "wrapped up" if matches are still live or upcoming. Count words before submitting.
+Do NOT append sources, citations or footnotes after the JSON.
+Return ONLY valid JSON - no markdown, no code fences, no explanation, no text before or after.
+Use this exact schema (expand matches[] with all real matches):

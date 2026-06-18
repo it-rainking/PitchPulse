@@ -1,0 +1,5 @@
+VERIFY the match has actually finished (full time) before filling data. If it has not finished yet, treat score_a/score_b as the most recent real values and only describe it as final if truly over - otherwise state the real current status in cold_verdict instead of inventing a final result.
+mvp: the single standout player of THIS match based on real post-match ratings/commentary (goals, assists, key actions). reason must be one real sentence, not generic praise.
+cold_verdict: one sharp, data-backed sentence judging how the match actually went (e.g. dominant performance, surprise result, defensive masterclass) - based on real stats, not speculation.
+record_broken: only fill with a REAL record/milestone if one was actually broken or equaled in this match (goals, appearances, tournament history). If none exists, set the JSON value to null - not the string "null".
+next_match: if team_a or team_b has a confirmed next match in the tournament, fill it as "opponent, phase, date". If this was the final or a team is eliminated, set the JSON value to null.

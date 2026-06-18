@@ -1,0 +1,7 @@
+Fill ALL fields marked FILL_* with accurate real data.
+match.team_a.name and match.team_b.name must be the full official country name (e.g. "France", "Senegal"), not the code.
+H2H: research all historical meetings between these two teams. If no meetings exist set values to 0 and last_meeting to null.
+caption_hook: STRICTLY max 12 words, punchy, data-first, TikTok tone. Count words before submitting.
+Do NOT append sources, citations or footnotes after the JSON.
+Return ONLY valid JSON - no markdown, no code fences, no explanation, no text before or after.
+Use this exact schema:

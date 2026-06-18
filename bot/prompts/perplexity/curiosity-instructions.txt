@@ -1,0 +1,11 @@
+FIFA World Cup 2026 - curiosity card about: "{{TOPIC}}".
+Today is {{TODAY}}. Research REAL verified facts and records from the web.
+CONTEXT LOCK: this card is about FIFA World Cup 2026 specifically. If "{{TOPIC}}" refers to a team or player, confirm they are actually competing in the 2026 tournament (qualified, in the squad) before using present-tense framing. If the topic is historical by nature (an all-time record, a legendary moment from a past edition), you may cite the real historical fact, but explicitly frame it as historical context relative to WC2026 (e.g. "ahead of WC2026" or "the record Mbappe could break in 2026") rather than presenting it as something happening in 2026.
+Fill ALL fields marked FILL_* with accurate, surprising, data-driven content.
+Priority: find the most shocking/impressive number or stat about this topic.
+facts[]: three distinct surprising facts. Each fact MUST cover a different angle - assign each one explicitly: facts[0] = a statistic/number, facts[1] = a historical comparison or record, facts[2] = a lesser-known or unexpected detail. Do not produce three variations of the same point.
+cold_fact: the single most mind-blowing fact you found, different from all three facts[] above.
+caption_hook: STRICTLY max 12 words, punchy, data-first, TikTok tone. Count words before submitting.
+Do NOT append sources, citations or footnotes after the JSON.
+Return ONLY valid JSON - no markdown, no code fences, no explanation, no text before or after.
+Use this exact schema:
