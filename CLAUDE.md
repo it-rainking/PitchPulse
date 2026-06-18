@@ -1,18 +1,19 @@
 # CLAUDE.md — PitchPulse
 
+> Questo file viene letto automaticamente da Claude Code all'avvio di ogni sessione.
+> Tienilo aggiornato: è la fonte di verità tra una sessione e l'altra, non la chat.
+
 Guida operativa per Claude Code su questo repository. Leggi questo file prima di qualsiasi modifica al pipeline HTML/render.
 
-## Project Overview
+## Cosa è PitchPulse
 
-PitchPulse è un brand di sports media (calcio) che produce video short-form automatizzati e brandizzati per TikTok, Instagram Reels e YouTube Shorts, con focus principale sul Mondiale FIFA 2026.
+Brand di media sportivo (calcio) che produce contenuti video brandizzati e automatizzati per TikTok, Instagram Reels, YouTube Shorts. Focus principale: copertura FIFA World Cup 2026.
 
 La pipeline prende dati di partita strutturati (JSON) e produce due deliverable accoppiati per ogni richiesta:
 - una card HTML animata autosufficiente, 1080×1920px
 - un file di copy/caption social di accompagnamento
 
-Flusso completo: comando Telegram bot → recupero dati via Perplexity AI → JSON strutturato → generazione HTML via Claude → render MP4 via HyperFrames su GitHub Actions → upload Dropbox → callback Telegram.
-
-**Stato attuale**: render end-to-end confermato funzionante (450/450 frame).
+Pipeline: comando Telegram → recupero dati via Perplexity AI → JSON strutturato → Claude genera HTML → render MP4 via HyperFrames su GitHub Actions → upload Dropbox → callback Telegram.
 
 ## Architecture
 
@@ -30,6 +31,27 @@ Telegram Bot (Railway)
 - **System prompt HTML Agent**: `bot/prompts/system-html-agent.txt`
 - **Handler bot**: tutti i comandi instradano su un singolo `handleMoment()`
 
+## Stato attuale (ultimo aggiornamento: vedi data ultimo commit)
+
+- **Pipeline end-to-end**: confermata funzionante, render completo 450/450 frame
+- **Bot**: comandi `/prematch`, `/live`, `/postmatch`, `/teaser`, tutti instradati su `handleMoment()`
+- **System prompt HTML Agent**: `bot/prompts/system-html-agent.txt`
+
+### Problemi aperti
+
+1. **Audio path bug**: path con leading slash (`/audio/PP-prematch.mp3`) causava interpretazione come path assoluto Linux invece che relativo al progetto. Fix proposto: rimuovere leading slash da tutti gli asset path nel system prompt. **CONFERMATO: non testato, non applicato.** Primo task della prossima sessione.
+2. **Template 36 animazioni PRE-MATCH** (`pitchpulse-prematch-test.html`): discusso e progettato, ma **CONFERMATO: il file non esiste nel repo**. Esiste solo come contenuto scambiato in chat — va ricreato e committato per non perderlo, prima di passare alla review di Nick.
+3. **Setup connessione GitHub**: sessione di setup guidato iniziata ma non completata (fermata in fase di raccolta info).
+
+### Da fare
+
+- **PRIORITÀ 1**: applicare e testare il fix path audio (rimozione leading slash da tutti gli asset path nel system prompt) — confermato NON ancora fatto nel repo
+- **PRIORITÀ 2**: il template 36 animazioni PRE-MATCH (`pitchpulse-prematch-test.html`) non esiste ancora come file nel repo — va creato/salvato prima di poterlo far revieware a Nick, altrimenti il lavoro discusso in chat è a rischio perdita
+- Review template 36 animazioni (una volta creato) e integrazione regole approvate in `system-html-agent.txt`
+- Completare setup connessione repo GitHub
+- Valutare script `auto-trigger.js` per re-render periodico automatico durante live match (proposto, non costruito)
+- Valutare alternative production-grade a endpoint ESPN non ufficiali (candidate: StatsBomb, API-Football, SportRadar)
+
 ## Tech Stack
 
 | Layer | Strumento |
@@ -41,6 +63,16 @@ Telegram Bot (Railway)
 | Storage output | Dropbox (MP4) |
 | CDN asset brand | Cloudflare R2 — `pub-3014d0a8aa084b139613f942b5551b02.r2.dev` (logo, font) |
 | Dati match | WC26-Tracker (Cloudflare Workers, wrapper API ESPN non ufficiale) — alternative in valutazione |
+
+## Struttura cartelle attesa
+
+```
+PitchPulse/
+├── audio/PP-prematch.mp3, PP-live.mp3, PP-postmatch.mp3
+├── fonts/BebasNeue-Regular.woff2, BarlowCondensed-Bold.woff2, Barlow-Regular.woff2, Barlow-Medium.woff2
+├── videos/[filename].mp4
+└── [NomeProgetto]/index.html
+```
 
 ## Output Convention
 
@@ -59,7 +91,7 @@ Queste regole sono state apprese tramite debugging hard-won. Violarle rompe il r
 3. **Audio**: richiede `data-start` (altrimenti `media_missing_data_start`) e `id` (altrimenti `media_missing_id`, audio silenzioso). Deve essere scaricato localmente prima del render — HyperFrames non risolve URL remoti per il mixing FFmpeg. Mai `display:none` sull'audio (viene skippato dal compiler). `ERR_ABORTED` nei log headless è normale: l'audio è mixato da FFmpeg, non suonato dal browser.
 4. **Path asset**: sempre relativi al progetto (`../audio/`, `../fonts/`, `../videos/`), mai assoluti (`/Users/...` o leading slash come `/audio/...`). Asset statici vanno copiati dentro la project directory prima del render.
 5. **Render command**: `npx hyperframes render . --output file.mp4 --format mp4` eseguito dalla directory di progetto contenente `index.html`.
-6. **Font**: niente Google Fonts — il renderer è offline/sandboxed. Font locali via `@font-face` con path relativi `../fonts/`, `format('woff2')`.
+6. **Font**: niente Google Fonts — il renderer è offline/sandboxed. Font locali via `@font-face` con path relativi `../fonts/`, `format('woff2')` per file `.woff2`.
 7. **Niente testo con gradiente**: mai `-webkit-text-fill-color: transparent` o `background-clip: text` su numeri grandi/headline — Chromium headless li renderizza in modo inconsistente. Usare `color` + `text-shadow` glow.
 8. **JavaScript**: solo lo stub di registrazione timeline è permesso. Zero `requestAnimationFrame`, zero `setInterval`/`setTimeout` — il rAF forza HyperFrames in screenshot mode degradando qualità e velocità. `play()`/`pause()` devono essere no-op.
 9. **Pointer-events sui layer decorativi**: mai `pointer-events:none` inline (il linter HyperFrames lo flagga). Raggruppare tutti i bg layer in un wrapper `.bg-layer-wrap` con la regola CSS dedicata.
@@ -90,14 +122,8 @@ Queste regole sono state apprese tramite debugging hard-won. Violarle rompe il r
 - Tipografia: Bebas Neue (display) · Barlow Condensed 700 (label) · Barlow 400/500 (body)
 - Safe zone: niente contenuto importante nel 15% inferiore (overlay UI TikTok) o nell'8% superiore (status bar)
 
-## Open Items / Next Steps
+## Note operative per Claude Code
 
-- [ ] Testare e confermare la fix dei path audio con leading-slash (rimozione slash iniziali in `system-html-agent.txt`)
-- [ ] Revisionare il sistema a 36 animazioni PRE-MATCH (`pitchpulse-prematch-test.html`) e integrare le regole approvate nel system prompt
-- [ ] Completare il setup della connessione GitHub repo (fermato allo stadio di raccolta informazioni)
-- [ ] Valutare script companion `auto-trigger.js` per re-rendering periodico automatizzato durante partite live (proposto, non costruito)
-- [ ] Valutare alternative API dati production-grade a ESPN non ufficiale: StatsBomb, API-Football, SportRadar
-
-## Note
-
-Questo file riflette lo stato del progetto al 18 giugno 2026, basato sulla cronologia delle sessioni precedenti. Aggiornarlo quando vengono chiuse le voci in Open Items o quando emergono nuove regole critiche da debugging.
+- Prima di ogni sessione: `git pull` per essere sicuri di partire dalla versione aggiornata del repo, non da una copia locale stale.
+- Dopo ogni modifica significativa: commit + push, non lasciare lavoro solo in locale — è l'unico modo per cui questo file e il repo restino la fonte di verità tra una sessione e l'altra.
+- Se questo file risulta disallineato con lo stato reale del repo (es. un problema elencato come "aperto" è già stato risolto), aggiornarlo subito come parte del task, non a fine sessione.
