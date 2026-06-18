@@ -789,13 +789,70 @@ const BATCH_MAX_JOBS = 10;
 const BATCH_DELAY_MS = 10000;
 const VALID_MOMENTS = ['prematch', 'live', 'postmatch', 'teaser'];
 
+// Stato batch attivo (uno alla volta)
+let batchState = null; // { chatId, total, done, stopped }
+
+async function runBatchJobs(jobs, chatId) {
+  for (let i = 0; i < jobs.length; i++) {
+    if (batchState && batchState.stopped) {
+      await bot.telegram.sendMessage(chatId,
+        `🛑 *Batch interrotto* dopo ${i}/${jobs.length} job avviati.`,
+        { parse_mode: 'Markdown' });
+      return;
+    }
+
+    if (batchState) batchState.done = i;
+
+    const job = jobs[i];
+    const label = job.moment === 'highlights'
+      ? `highlights ${job.query}`
+      : `${job.moment} ${job.teamA} vs ${job.teamB}`;
+
+    await bot.telegram.sendMessage(chatId,
+      `▶️ *Job ${i + 1}/${jobs.length}:* ${label}`,
+      { parse_mode: 'Markdown' });
+
+    const replyFn = (text, opts) => bot.telegram.sendMessage(chatId, text, opts);
+
+    try {
+      if (job.moment === 'highlights') {
+        await handleHighlights({
+          message: { text: `/highlights ${job.query}` },
+          reply: replyFn,
+        });
+      } else {
+        await handleMoment({
+          message: { text: `/${job.moment} ${job.teamA} vs ${job.teamB}` },
+          reply: replyFn,
+        }, job.moment);
+      }
+    } catch (err) {
+      await bot.telegram.sendMessage(chatId, `❌ Job ${i + 1} fallito: ${err.message}`);
+    }
+
+    if (i < jobs.length - 1 && batchState && !batchState.stopped) {
+      await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+    }
+  }
+
+  if (batchState && !batchState.stopped) {
+    await bot.telegram.sendMessage(chatId,
+      `✅ *Batch completato:* ${jobs.length}/${jobs.length} job avviati`,
+      { parse_mode: 'Markdown' });
+  }
+}
+
 async function handleBatch(ctx) {
   const rawText = ctx.message.text.replace('/batch', '').trim();
   if (!rawText) {
     return ctx.reply(
-      '*Formato /batch:*\n```\nprematch Brazil vs Argentina\nlive France vs England\npostmatch Spain vs Germany\nhighlights MD1\nhighlights group A\nhighlights 2026-06-18\n```\n(max 10 righe, una per riga)',
+      '*Formato /batch:*\n```\nprematch Brazil vs Argentina\nlive France vs England\npostmatch Spain vs Germany\nhighlights MD1\nhighlights group A\nhighlights 2026-06-18\n```\n(max 10 righe, una per riga)\nUsa /batchstop per fermare.',
       { parse_mode: 'Markdown' }
     );
+  }
+
+  if (batchState) {
+    return ctx.reply('⚠️ Batch già in corso. Usa /batchstop per fermarlo prima di avviarne uno nuovo.');
   }
 
   const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
@@ -832,35 +889,40 @@ async function handleBatch(ctx) {
     return ctx.reply(errMsg, { parse_mode: 'Markdown' });
   }
 
-  let summary = `🚀 *Batch avviato:* ${jobs.length} job${jobs.length > 1 ? 's' : ''}`;
+  let summary = `🚀 *Batch avviato:* ${jobs.length} job${jobs.length > 1 ? 's' : ''} in sequenza`;
   if (invalidLines.length > 0) {
     summary += `\n⚠️ ${invalidLines.length} riga${invalidLines.length > 1 ? 'e' : ''} ignorata${invalidLines.length > 1 ? 'e' : ''}:\n${invalidLines.join('\n')}`;
   }
+  summary += '\n\nUsa /batchstop per interrompere.';
   await ctx.reply(summary, { parse_mode: 'Markdown' });
 
-  let launched = 0;
-  for (let i = 0; i < jobs.length; i++) {
-    const job = jobs[i];
-    if (job.moment === 'highlights') {
-      const fakeCtx = {
-        message: { text: `/highlights ${job.query}` },
-        reply: (text, opts) => ctx.reply(text, opts),
-      };
-      await handleHighlights(fakeCtx);
-    } else {
-      const fakeCtx = {
-        message: { text: `/${job.moment} ${job.teamA} vs ${job.teamB}` },
-        reply: (text, opts) => ctx.reply(text, opts),
-      };
-      await handleMoment(fakeCtx, job.moment);
-    }
-    launched++;
-    if (i < jobs.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
-    }
-  }
+  const chatId = ctx.chat.id;
+  batchState = { chatId, total: jobs.length, done: 0, stopped: false };
 
-  await ctx.reply(`✅ *Batch completato:* ${launched}/${jobs.length} job avviati`, { parse_mode: 'Markdown' });
+  // Stacca il loop dal webhook handler: Telegram ha timeout ~60s,
+  // il batch dura minuti — senza setImmediate Telegram fa retry
+  // avviando batch concorrenti.
+  setImmediate(async () => {
+    try {
+      await runBatchJobs(jobs, chatId);
+    } catch (err) {
+      console.error('[batch] Unexpected error:', err.message);
+      await bot.telegram.sendMessage(chatId, `❌ Errore batch: ${err.message}`).catch(() => {});
+    } finally {
+      batchState = null;
+    }
+  });
+}
+
+async function handleBatchStop(ctx) {
+  if (!batchState) {
+    return ctx.reply('ℹ️ Nessun batch in corso.');
+  }
+  batchState.stopped = true;
+  await ctx.reply(
+    `🛑 *Stop richiesto.* Il batch si ferma dopo il job corrente (${batchState.done + 1}/${batchState.total}).`,
+    { parse_mode: 'Markdown' }
+  );
 }
 
 // ── Callback render completato ────────────────────────────
@@ -884,11 +946,11 @@ app.get('/health', (req, res) => res.json({ ok: true, bot: 'PitchPulse' }));
 
 // ── Comandi bot ───────────────────────────────────────────
 bot.command('start', (ctx) => ctx.reply(
-  '*PitchPulse Bot* attivo!\n\n⚽ /prematch Brazil vs Argentina\n🔴 /live Brazil vs Argentina\n🏆 /postmatch Brazil vs Argentina\n🔮 /teaser Brazil vs Argentina\n🤯 /curiosity World Cup 2026\n📊 /highlights MD1\n📋 /batch [vedi /help per formato]',
+  '*PitchPulse Bot* attivo!\n\n⚽ /prematch Brazil vs Argentina\n🔴 /live Brazil vs Argentina\n🏆 /postmatch Brazil vs Argentina\n🔮 /teaser Brazil vs Argentina\n🤯 /curiosity World Cup 2026\n📊 /highlights MD1\n📋 /batch [vedi /help per formato]\n🛑 /batchstop — ferma il batch in corso',
   { parse_mode: 'Markdown' }
 ));
 bot.command('help', (ctx) => ctx.reply(
-  '*Comandi:*\n\n⚽ /prematch TeamA vs TeamB\n🔴 /live TeamA vs TeamB\n🏆 /postmatch TeamA vs TeamB\n🔮 /teaser TeamA vs TeamB\n🤯 /curiosity [topic]\n📊 /highlights [MD1 / group A / data / ...]\n📋 /batch — lancia più post in sequenza:\n`prematch Brazil vs Argentina`\n`live France vs England`\n`highlights MD1`\n`highlights group A`\n`highlights 2026-06-18`\n(una riga per job, max 10)\n\n⏱ Render circa 3 min | ☁️ Output: Dropbox /[project]/',
+  '*Comandi:*\n\n⚽ /prematch TeamA vs TeamB\n🔴 /live TeamA vs TeamB\n🏆 /postmatch TeamA vs TeamB\n🔮 /teaser TeamA vs TeamB\n🤯 /curiosity [topic]\n📊 /highlights [MD1 / group A / data / ...]\n📋 /batch — lancia più post in sequenza (uno alla volta):\n`prematch Brazil vs Argentina`\n`live France vs England`\n`highlights MD1`\n`highlights group A`\n`highlights 2026-06-18`\n(una riga per job, max 10)\n🛑 /batchstop — ferma il batch corrente\n\n⏱ Render circa 3 min | ☁️ Output: Dropbox /[project]/',
   { parse_mode: 'Markdown' }
 ));
 bot.command('prematch',   (ctx) => handleMoment(ctx, 'prematch'));
@@ -898,6 +960,7 @@ bot.command('teaser',     (ctx) => handleMoment(ctx, 'teaser'));
 bot.command('curiosity',  (ctx) => handleCuriosity(ctx));
 bot.command('highlights', (ctx) => handleHighlights(ctx));
 bot.command('batch',      (ctx) => handleBatch(ctx));
+bot.command('batchstop',  (ctx) => handleBatchStop(ctx));
 
 // ── Server / webhook ──────────────────────────────────────
 if (RAILWAY_PUBLIC_URL) {
