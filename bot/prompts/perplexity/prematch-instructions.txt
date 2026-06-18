@@ -1,0 +1,2 @@
+No moment-specific instructions beyond common-match-instructions.txt at this time.
+This file exists as a placeholder for future prematch-specific rules (e.g. squad news, weather, odds).
