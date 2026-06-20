@@ -262,7 +262,7 @@ async function getCuriosityData(topic) {
 
 // ── Handler curiosity ─────────────────────────────────────
 async function handleCuriosity(ctx) {
-  const topic = ctx.message.text.replace('/curiosity', '').trim();
+  const topic = ctx.message.text.replace(/^\/curiosity(?:@\S+)?\s*/i, '').trim();
   if (!topic) return ctx.reply('Formato: /curiosity World Cup 2026\nEsempi: /curiosity Brazil | /curiosity Group A | /curiosity Mbappe');
 
   const slug = topic.replace(/\s/g, '').substring(0, 12).toUpperCase();
@@ -593,7 +593,7 @@ async function getHighlightsData(matchday) {
 
 // ── Handler highlights ────────────────────────────────────
 async function handleHighlights(ctx) {
-  const input = ctx.message.text.replace('/highlights', '').trim();
+  const input = ctx.message.text.replace(/^\/highlights(?:@\S+)?\s*/i, '').trim();
   if (!input) return ctx.reply('Formato: /highlights MD1\nEsempi: /highlights MD1 | /highlights MD3 | /highlights 2026-06-16');
 
   const slug = input.replace(/\s/g, '').substring(0, 8).toUpperCase();
@@ -788,7 +788,7 @@ async function getGroupHlData(group) {
 
 // ── Handler group_hl ──────────────────────────────────────
 async function handleGroupHl(ctx) {
-  const input = ctx.message.text.replace('/group_hl', '').trim();
+  const input = ctx.message.text.replace(/^\/group_hl(?:@\S+)?\s*/i, '').trim();
   if (!input) return ctx.reply('Formato: /group_hl Group A\nEsempi: /group_hl Group A | /group_hl Group C | /group_hl Group L');
 
   const slug = input.replace(/\s/g, '').substring(0, 8).toUpperCase();
@@ -943,7 +943,7 @@ async function triggerRender(html, projectName, callbackUrl, postText, promptPer
 
 // ── Handler principale match ──────────────────────────────
 async function handleMoment(ctx, moment) {
-  const text = ctx.message.text.replace(`/${moment}`, '').trim();
+  const text = ctx.message.text.replace(new RegExp(`^\\/${moment}(?:@\\S+)?\\s*`, 'i'), '').trim();
   const match = text.match(/(.+?)\s+vs\s+(.+)/i);
   if (!match) return ctx.reply(`Formato: /${moment} Brazil vs Argentina`);
 
@@ -1052,7 +1052,7 @@ async function runBatchJobs(jobs, chatId) {
 }
 
 async function handleBatch(ctx) {
-  const rawText = ctx.message.text.replace('/batch', '').trim();
+  const rawText = ctx.message.text.replace(/^\/batch(?:@\S+)?\s*/i, '').trim();
   if (!rawText) {
     return ctx.reply(
       '*Formato /batch:*\n```\nprematch Brazil vs Argentina\nlive France vs England\npostmatch Spain vs Germany\nhighlights MD1\ngroup_hl Group A\ngroup_hl Group C\n```\n(max 10 righe, una per riga)\nUsa /batchstop per fermare.',
