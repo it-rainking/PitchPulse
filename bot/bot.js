@@ -1013,7 +1013,7 @@ async function runBatchJobs(jobs, chatId) {
       : `${job.moment} ${job.teamA} vs ${job.teamB}`;
 
     await bot.telegram.sendMessage(chatId,
-      `▶️ *Job ${i + 1}/${jobs.length}:* ${label}`,
+      `▶️ *Job ${i + 1}/${jobs.length}:* ${label.replace(/_/g, '\\_')}`,
       { parse_mode: 'Markdown' });
 
     const replyFn = (text, opts) => bot.telegram.sendMessage(chatId, text, opts);
@@ -1090,7 +1090,7 @@ async function handleBatch(ctx) {
     const teamA = m[2].trim();
     const teamB = m[3].trim();
     if (!VALID_MOMENTS.includes(moment)) {
-      invalidLines.push(`• \`${line}\` — moment "${moment}" non valido (usa: ${VALID_MOMENTS.join(', ')}, highlights <MD>, group_hl <Group X>)`);
+      invalidLines.push(`• \`${line}\` — moment "${moment}" non valido (usa: ${VALID_MOMENTS.join(', ')}, highlights <MD>, group\\_hl <Group X>)`);
       continue;
     }
     jobs.push({ moment, teamA, teamB });
