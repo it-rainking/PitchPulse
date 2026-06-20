@@ -97,6 +97,9 @@ jobs:
           curl -fSL "$BASE/audio/PP-prematch.mp3"  -o audio/PP-prematch.mp3  && echo "OK PP-prematch.mp3"  || echo "MISS PP-prematch.mp3"
           curl -fSL "$BASE/audio/PP-live.mp3"      -o audio/PP-live.mp3      && echo "OK PP-live.mp3"      || echo "MISS PP-live.mp3"
           curl -fSL "$BASE/audio/PP-postmatch.mp3" -o audio/PP-postmatch.mp3 && echo "OK PP-postmatch.mp3" || echo "MISS PP-postmatch.mp3"
+          curl -fSL "$BASE/audio/DD-Prematch.mp3"  -o audio/DD-Prematch.mp3  && echo "OK DD-Prematch.mp3"  || echo "MISS DD-Prematch.mp3"
+          curl -fSL "$BASE/audio/DD-live.mp3"      -o audio/DD-live.mp3      && echo "OK DD-live.mp3"      || echo "MISS DD-live.mp3"
+          curl -fSL "$BASE/audio/DD-postmatch.mp3" -o audio/DD-postmatch.mp3 && echo "OK DD-postmatch.mp3" || echo "MISS DD-postmatch.mp3"
 
           echo "=== FONTS ==="
           curl -fSL "$BASE/fonts/BebasNeue-Regular.ttf"    -o fonts/BebasNeue-Regular.ttf    && echo "OK BebasNeue-Regular.ttf"    || echo "MISS BebasNeue-Regular.ttf"
