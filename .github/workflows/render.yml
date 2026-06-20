@@ -123,9 +123,10 @@ jobs:
           echo "${{ github.event.inputs.html }}" | base64 -d > "$PROJECT/index.html"
           echo "index.html scritto: $(wc -c < "$PROJECT/index.html") bytes"
 
-          # Post copy text (opzionale)
+          # Post copy text (opzionale) — UTF-8 BOM prepended so Windows tools detect encoding correctly
           if [ -n "${{ github.event.inputs.post_text }}" ]; then
-            echo "${{ github.event.inputs.post_text }}" | base64 -d > "$PROJECT/post.txt"
+            printf '\xef\xbb\xbf' > "$PROJECT/post.txt"
+            echo "${{ github.event.inputs.post_text }}" | base64 -d >> "$PROJECT/post.txt"
             echo "post.txt scritto: $(wc -c < "$PROJECT/post.txt") bytes"
           fi
 
