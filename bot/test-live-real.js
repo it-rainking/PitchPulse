@@ -36,7 +36,7 @@ const mode = args[0];
 const input = args[1];
 
 if (!mode || !input) {
-  console.log('Uso: node test-live-real.js <prematch|live|postmatch|curiosity|highlights> "<input>"');
+  console.log('Uso: node test-live-real.js <prematch|live|postmatch|curiosity|highlights|group_hl> "<input>"');
   process.exit(1);
 }
 
@@ -81,6 +81,8 @@ async function callPerplexity(prompt) {
     result = await mod.getCuriosityData(input);
   } else if (mode === 'highlights') {
     result = await mod.getHighlightsData(input);
+  } else if (mode === 'group_hl') {
+    result = await mod.getGroupHlData(input);
   } else {
     const matchInput = input.match(/(.+?)\s+vs\s+(.+)/i);
     if (!matchInput) {
@@ -111,6 +113,12 @@ async function callPerplexity(prompt) {
     console.log('- matches[] contiene TUTTI i match reali della giornata?');
     console.log('- ogni match ha lo status corretto (FT/LIVE/NS) rispetto a ora?');
     console.log('- i match NS hanno davvero score_a/score_b = null?');
+  }
+  if (mode === 'group_hl') {
+    console.log('- standings[] ha esattamente 4 team con pos 1-4?');
+    console.log('- played, won, drawn, lost, gf, ga, pts sono tutti interi reali?');
+    console.log('- played_matches[] contiene solo le partite effettivamente giocate?');
+    console.log('- upcoming_matches[] è array vuoto se tutte le partite sono state giocate?');
   }
   if (mode === 'curiosity') {
     console.log('- il fatto è davvero ancorato a WC2026 o cita correttamente contesto storico?');
