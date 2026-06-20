@@ -112,6 +112,7 @@ async function generateCopy(jsonData, moment, teamA, teamB) {
 
 Write a social copy block for this ${momentLabel} card. Use ONLY data from the JSON below.
 Tone: high energy, punchy, data-first, never neutral.
+IMPORTANT: do NOT use country flag emoji (regional indicator pairs like 🇺🇸 or 🇧🇷) anywhere — they break on Windows. Use other emoji (⚽🔥💥📊) or plain text instead.
 
 Return ONLY this exact format, no extra text:
 
@@ -279,6 +280,7 @@ async function handleCuriosity(ctx) {
 
 Write a social copy block for this CURIOSITY card about: "${topic}". Use ONLY data from the JSON below.
 Tone: mind-blowing, punchy, data-first, never neutral.
+IMPORTANT: do NOT use country flag emoji (regional indicator pairs like 🇺🇸 or 🇧🇷) anywhere — they break on Windows. Use other emoji (⚽🔥💥📊🧠) or plain text instead.
 
 Return ONLY this exact format, no extra text:
 
@@ -610,6 +612,7 @@ async function handleHighlights(ctx) {
 
 Write a social copy block for this HIGHLIGHTS recap. Use ONLY data from the JSON below.
 Tone: high energy, punchy, data-first, never neutral.
+IMPORTANT: do NOT use country flag emoji (regional indicator pairs like 🇺🇸 or 🇧🇷) anywhere — they break on Windows. Use other emoji (⚽🔥💥📊) or plain text instead.
 
 Return ONLY this exact format, no extra text:
 
@@ -620,7 +623,7 @@ Tournament: [meta.tournament]
 --- TIKTOK / REELS CAPTION ---
 [caption_hook from JSON - STRICTLY max 12 words]
 
-[List all results as: FLAG TeamA score-score TeamB FLAG]
+[List all results as: TeamA score-score TeamB (plain text, NO emoji flags — flag emoji break on Windows)]
 [1 line on top scorer if not null]
 [1 CTA - e.g. "Follow @PitchPulse for every result 👇"]
 
@@ -805,6 +808,7 @@ async function handleGroupHl(ctx) {
 
 Write a social copy block for this GROUP HIGHLIGHTS card. Use ONLY data from the JSON below.
 Tone: high energy, punchy, data-first, never neutral.
+IMPORTANT: do NOT use country flag emoji (regional indicator pairs like 🇲🇽 or 🇰🇷) anywhere — they break on Windows. Use other emoji (⚽🔥💥📊) or plain text instead.
 
 Return ONLY this exact format, no extra text:
 
@@ -815,7 +819,7 @@ Tournament: [meta.tournament]
 --- TIKTOK / REELS CAPTION ---
 [caption_hook from JSON - STRICTLY max 12 words]
 
-[Standings snapshot: 1. FLAG Code Xpts | 2. FLAG Code Xpts | 3. FLAG Code Xpts | 4. FLAG Code Xpts]
+[Standings snapshot: 1. Code Xpts | 2. Code Xpts | 3. Code Xpts | 4. Code Xpts — plain text ONLY, NO emoji flags]
 [1 line on the most notable played match result or cold_fact]
 [1 CTA - e.g. "Follow @PitchPulse for every group update 📊"]
 
