@@ -56,13 +56,13 @@ const ASSETS = {
     video: '../videos/'
   },
   audio: {
-    prematch:   'PP-prematch.mp3',
-    live:       'PP-live.mp3',
-    postmatch:  'PP-postmatch.mp3',
-    teaser:     'PP-prematch.mp3',
-    curiosity:  'PP-prematch.mp3',
-    highlights: 'PP-postmatch.mp3',
-    group_hl:   'PP-postmatch.mp3'
+    prematch:   ['PP-prematch.mp3',  'DD-Prematch.mp3'],
+    live:       ['PP-live.mp3',      'DD-live.mp3'],
+    postmatch:  ['PP-postmatch.mp3', 'DD-postmatch.mp3'],
+    teaser:     ['PP-prematch.mp3',  'DD-Prematch.mp3'],
+    curiosity:  ['PP-prematch.mp3',  'DD-Prematch.mp3'],
+    highlights: ['PP-postmatch.mp3', 'DD-postmatch.mp3'],
+    group_hl:   ['PP-postmatch.mp3', 'DD-postmatch.mp3']
   },
   video: [
     'Goal-1.mp4',
@@ -80,7 +80,8 @@ const ASSETS = {
 
 // ── Helper: path asset completi ───────────────────────────
 function getAssetPaths(moment) {
-  const audioFile = ASSETS.audio[moment] || ASSETS.audio.prematch;
+  const pool = ASSETS.audio[moment] || ASSETS.audio.prematch;
+  const audioFile = pool[Math.floor(Math.random() * pool.length)];
   const videoFile = ASSETS.video[Math.floor(Math.random() * ASSETS.video.length)];
   return {
     audio_src: ASSETS.paths.audio + audioFile,
