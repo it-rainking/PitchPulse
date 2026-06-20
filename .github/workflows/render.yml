@@ -43,6 +43,32 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
+
+      # ── 2b. Cache: puppeteer, node_modules, R2 assets ────
+      - name: Cache puppeteer (chrome-headless-shell)
+        id: cache-puppeteer
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/puppeteer
+          key: v1-puppeteer-${{ runner.os }}
+
+      - name: Cache node_modules
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: v1-node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Cache R2 assets (audio, fonts, videos)
+        id: cache-assets
+        uses: actions/cache@v4
+        with:
+          path: |
+            audio
+            fonts
+            videos
+          key: v1-r2-assets
 
       # ── 3. Installa dipendenze sistema ────────────────────
       - name: Install system dependencies
@@ -73,21 +99,25 @@ jobs:
       - name: Install HyperFrames
         run: npm install -g hyperframes
 
-      # ── 4b. Installa chrome-headless-shell (render ottimizzato) ──
+      # ── 4b. Installa chrome-headless-shell (solo su cache miss) ──
       - name: Install chrome-headless-shell
+        if: steps.cache-puppeteer.outputs.cache-hit != 'true'
+        run: npx @puppeteer/browsers install chrome-headless-shell
+
+      - name: Export chrome-headless-shell path
         run: |
-          npx @puppeteer/browsers install chrome-headless-shell
-          # Trova il path e salvalo per lo step render
           CHS_PATH=$(find ~/.cache/puppeteer -name "chrome-headless-shell" -type f 2>/dev/null | head -1)
           echo "chrome-headless-shell trovato: $CHS_PATH"
           echo "CHS_PATH=$CHS_PATH" >> $GITHUB_ENV
 
-      # ── 5. Installa dipendenze progetto ───────────────────
+      # ── 5. Installa dipendenze progetto (solo su cache miss) ─
       - name: Install project dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm install
 
-      # ── 6. Scarica asset da Cloudflare R2 ────────────────
+      # ── 6. Scarica asset da Cloudflare R2 (solo su cache miss) ──
       - name: Download assets from Cloudflare R2
+        if: steps.cache-assets.outputs.cache-hit != 'true'
         run: |
           BASE="https://pub-3014d0a8aa084b139613f942b5551b02.r2.dev"
 
