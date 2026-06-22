@@ -47,6 +47,45 @@ function linesOf(text) {
   return text.split('\n').map(l => l.trimEnd()).filter(l => l.length > 0);
 }
 
+// ── Helper: normalizza il post text — rimuove intestazioni e applica spaziatura ──
+// Elimina header tipo "=== PITCHPULSE ... ===" e tutte le righe di metadati,
+// poi applica 2 righe vuote tra i paragrafi e 3 righe vuote prima degli hashtag.
+function formatPostText(text) {
+  const headerPatterns = [
+    /^===\s*PITCHPULSE/i,
+    /^Match:\s/i,
+    /^Phase:\s/i,
+    /^Venue:\s/i,
+    /^Kickoff:\s/i,
+    /^Topic:\s/i,
+    /^Category:\s/i,
+    /^Matchday:\s/i,
+    /^Tournament:\s/i,
+    /^Group:\s/i,
+    /^---\s*TIKTOK/i,
+    /^---\s*HASHTAGS/i,
+    /^---\s*CAPTION/i,
+  ];
+
+  const lines = text.split('\n');
+  const cleaned = lines.filter(line => !headerPatterns.some(p => p.test(line.trim())));
+  const trimmed = cleaned.join('\n').trim();
+
+  const blocks = trimmed.split(/\n{2,}/).map(b => b.trim()).filter(Boolean);
+  if (!blocks.length) return '';
+
+  let hashIdx = -1;
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    if (blocks[i].trimStart().startsWith('#')) { hashIdx = i; break; }
+  }
+
+  if (hashIdx <= 0) return blocks.join('\n\n\n');
+
+  const content = blocks.slice(0, hashIdx);
+  const hash = blocks.slice(hashIdx).join('\n\n\n');
+  return content.join('\n\n\n') + '\n\n\n\n' + hash;
+}
+
 // ── ASSET REGISTRY ────────────────────────────────────────
 // Modifica qui per aggiungere/cambiare audio, video e path
 const ASSETS = {
@@ -115,22 +154,19 @@ Write a social copy block for this ${momentLabel} card. Use ONLY data from the J
 Tone: high energy, punchy, data-first, never neutral.
 IMPORTANT: do NOT use country flag emoji (regional indicator pairs like 🇺🇸 or 🇧🇷) anywhere — they break on Windows. Use other emoji (⚽🔥💥📊) or plain text instead.
 
-Return ONLY this exact format, no extra text:
+Return ONLY the caption body below, no headers, no labels, no extra text.
+Use EXACTLY 2 blank lines between each of the first three paragraphs, and EXACTLY 3 blank lines before the hashtags:
 
-=== PITCHPULSE - ${momentLabel} COPY ===
-Match: [match.team_a.name] vs [match.team_b.name]
-Phase: [match.phase] - [meta.tournament]
-Venue: [match.venue], [match.city]
-Kickoff: format as "HH:MM TZ | HH:MM UTC | DD Month YYYY" using match.kickoff_local and match.kickoff_utc
-
---- TIKTOK / REELS CAPTION ---
 [caption_hook from JSON - STRICTLY max 12 words, punchy, data-first]
+
 
 [2-3 lines expanding on key stat or cold_fact. Max 40 words. Data-first.]
 
+
 [1 question to drive comments - e.g. "Who wins this one? Drop your score below"]
 
---- HASHTAGS ---
+
+
 [hashtags.match] [hashtags.tournament] [hashtags.brand_pitchpulse] [hashtags.generic]
 #${moment} #matchday #stats #footballdata #WC2026
 
@@ -157,20 +193,11 @@ ${JSON.stringify(jsonData, null, 2)}`;
     clearTimeout(timeout);
     const data = await res.json();
     if (!data.content || !data.content[0]) throw new Error('Claude copy error');
-    return data.content[0].text.trim();
+    return formatPostText(data.content[0].text.trim());
   } catch (err) {
     clearTimeout(timeout);
     const hashtags = Object.values(jsonData.hashtags || {}).join(' ');
-    return [
-      `=== PITCHPULSE - ${momentLabel} COPY ===`,
-      `Match: ${teamA} vs ${teamB}`,
-      ``,
-      `--- TIKTOK / REELS CAPTION ---`,
-      jsonData.caption_hook || '',
-      ``,
-      `--- HASHTAGS ---`,
-      hashtags
-    ].join('\n');
+    return `${jsonData.caption_hook || ''}\n\n\n\n${hashtags}`;
   }
 }
 
@@ -283,20 +310,19 @@ Write a social copy block for this CURIOSITY card about: "${topic}". Use ONLY da
 Tone: mind-blowing, punchy, data-first, never neutral.
 IMPORTANT: do NOT use country flag emoji (regional indicator pairs like 🇺🇸 or 🇧🇷) anywhere — they break on Windows. Use other emoji (⚽🔥💥📊🧠) or plain text instead.
 
-Return ONLY this exact format, no extra text:
+Return ONLY the caption body below, no headers, no labels, no extra text.
+Use EXACTLY 2 blank lines between each of the first three paragraphs, and EXACTLY 3 blank lines before the hashtags:
 
-=== PITCHPULSE - CURIOSITY COPY ===
-Topic: ${topic}
-Category: [curiosity.category]
-
---- TIKTOK / REELS CAPTION ---
 [caption_hook from JSON - STRICTLY max 12 words]
+
 
 [2-3 lines expanding on the most shocking fact. Max 40 words. Data-first.]
 
+
 [1 CTA - e.g. "Follow @PitchPulse for more WC2026 facts"]
 
---- HASHTAGS ---
+
+
 [hashtags.topic] [hashtags.tournament] [hashtags.brand_pitchpulse] [hashtags.generic]
 #curiosity #footballfacts #WC2026facts
 
@@ -326,10 +352,11 @@ ${JSON.stringify(jsonData, null, 2)}`;
           clearTimeout(timeout);
           const data = await res.json();
           if (!data.content || !data.content[0]) throw new Error('Claude copy error');
-          return data.content[0].text.trim();
+          return formatPostText(data.content[0].text.trim());
         } catch (err) {
           clearTimeout(timeout);
-          return `=== PITCHPULSE - CURIOSITY COPY ===\nTopic: ${topic}\n\n--- CAPTION ---\n${jsonData.caption_hook || ''}\n\n--- HASHTAGS ---\n${Object.values(jsonData.hashtags || {}).join(' ')}`;
+          const hashtags = Object.values(jsonData.hashtags || {}).join(' ');
+          return `${jsonData.caption_hook || ''}\n\n\n\n${hashtags}`;
         }
       })()
     ]);
@@ -615,20 +642,20 @@ Write a social copy block for this HIGHLIGHTS recap. Use ONLY data from the JSON
 Tone: high energy, punchy, data-first, never neutral.
 IMPORTANT: do NOT use country flag emoji (regional indicator pairs like 🇺🇸 or 🇧🇷) anywhere — they break on Windows. Use other emoji (⚽🔥💥📊) or plain text instead.
 
-Return ONLY this exact format, no extra text:
+Return ONLY the caption body below, no headers, no labels, no extra text.
+Use EXACTLY 2 blank lines between each of the first three paragraphs, and EXACTLY 3 blank lines before the hashtags:
 
-=== PITCHPULSE - HIGHLIGHTS COPY ===
-Matchday: [day.matchday] - [day.date]
-Tournament: [meta.tournament]
-
---- TIKTOK / REELS CAPTION ---
 [caption_hook from JSON - STRICTLY max 12 words]
+
 
 [List all results as: TeamA score-score TeamB (plain text, NO emoji flags — flag emoji break on Windows)]
 [1 line on top scorer if not null]
+
+
 [1 CTA - e.g. "Follow @PitchPulse for every result 👇"]
 
---- HASHTAGS ---
+
+
 [hashtags.matchday] [hashtags.tournament] [hashtags.brand_pitchpulse] [hashtags.generic]
 #highlights #results #WC2026recap
 
@@ -658,10 +685,11 @@ ${JSON.stringify(jsonData, null, 2)}`;
           clearTimeout(timeout);
           const data = await res.json();
           if (!data.content || !data.content[0]) throw new Error('Claude copy error');
-          return data.content[0].text.trim();
+          return formatPostText(data.content[0].text.trim());
         } catch (err) {
           clearTimeout(timeout);
-          return `=== PITCHPULSE - HIGHLIGHTS COPY ===\nMatchday: ${input}\n\n--- CAPTION ---\n${jsonData.caption_hook || ''}\n\n--- HASHTAGS ---\n${Object.values(jsonData.hashtags || {}).join(' ')}`;
+          const hashtags = Object.values(jsonData.hashtags || {}).join(' ');
+          return `${jsonData.caption_hook || ''}\n\n\n\n${hashtags}`;
         }
       })()
     ]);
@@ -811,20 +839,20 @@ Write a social copy block for this GROUP HIGHLIGHTS card. Use ONLY data from the
 Tone: high energy, punchy, data-first, never neutral.
 IMPORTANT: do NOT use country flag emoji (regional indicator pairs like 🇲🇽 or 🇰🇷) anywhere — they break on Windows. Use other emoji (⚽🔥💥📊) or plain text instead.
 
-Return ONLY this exact format, no extra text:
+Return ONLY the caption body below, no headers, no labels, no extra text.
+Use EXACTLY 2 blank lines between each of the first three paragraphs, and EXACTLY 3 blank lines before the hashtags:
 
-=== PITCHPULSE - GROUP HIGHLIGHTS COPY ===
-Group: [group.name] — [group.stage]
-Tournament: [meta.tournament]
-
---- TIKTOK / REELS CAPTION ---
 [caption_hook from JSON - STRICTLY max 12 words]
+
 
 [Standings snapshot: 1. Code Xpts | 2. Code Xpts | 3. Code Xpts | 4. Code Xpts — plain text ONLY, NO emoji flags]
 [1 line on the most notable played match result or cold_fact]
+
+
 [1 CTA - e.g. "Follow @PitchPulse for every group update 📊"]
 
---- HASHTAGS ---
+
+
 [hashtags.group] [hashtags.tournament] [hashtags.brand_pitchpulse] [hashtags.generic]
 #groupstage #standings #WC2026group
 
@@ -854,10 +882,11 @@ ${JSON.stringify(jsonData, null, 2)}`;
           clearTimeout(timeout);
           const data = await res.json();
           if (!data.content || !data.content[0]) throw new Error('Claude copy error');
-          return data.content[0].text.trim();
+          return formatPostText(data.content[0].text.trim());
         } catch (err) {
           clearTimeout(timeout);
-          return `=== PITCHPULSE - GROUP HIGHLIGHTS COPY ===\nGroup: ${input}\n\n--- CAPTION ---\n${jsonData.caption_hook || ''}\n\n--- HASHTAGS ---\n${Object.values(jsonData.hashtags || {}).join(' ')}`;
+          const hashtags = Object.values(jsonData.hashtags || {}).join(' ');
+          return `${jsonData.caption_hook || ''}\n\n\n\n${hashtags}`;
         }
       })()
     ]);
