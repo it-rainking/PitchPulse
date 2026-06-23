@@ -17,6 +17,10 @@ const PORT = process.env.PORT || 3000;
 
 const SYSTEM_PROMPT = fs.readFileSync(path.join(__dirname, 'prompts/system-html-agent.txt'), 'utf8');
 
+// ── Metricool Bridge: store output renders in-memory ──────
+// Key: projectName, Value: { project, dropbox, caption, shareLink, timestamp }
+const outputStore = new Map();
+
 // ── Prompt Perplexity: istruzioni statiche per moment ─────
 // File esterni in prompts/perplexity/ - contengono solo testo
 // con placeholder {{...}}; bot.js fa il replace a runtime.
@@ -1172,6 +1176,123 @@ async function handleBatchStop(ctx) {
   );
 }
 
+// ── Metricool Bridge: Dropbox helpers ────────────────────
+
+async function getDropboxAccessToken() {
+  const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: process.env.DBX_REFRESH_TOKEN,
+      client_id: process.env.DBX_APP_KEY,
+      client_secret: process.env.DBX_APP_SECRET
+    })
+  });
+  const data = await res.json();
+  if (!data.access_token) throw new Error('Dropbox token refresh failed');
+  return data.access_token;
+}
+
+async function readCaptionFromDropbox(projectName) {
+  try {
+    const token = await getDropboxAccessToken();
+    const res = await fetch('https://content.dropboxapi.com/2/files/download', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Dropbox-API-Arg': JSON.stringify({ path: `/${projectName}/post.txt` }),
+        'Content-Type': 'text/plain'
+      }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    return text.replace(/^﻿/, ''); // strip UTF-8 BOM
+  } catch (e) {
+    console.error('[dropbox] readCaption error:', e.message);
+    return '';
+  }
+}
+
+async function getDropboxShareLink(projectName) {
+  try {
+    const token = await getDropboxAccessToken();
+    const filePath = `/${projectName}/${projectName}.mp4`;
+
+    // Check if a shared link already exists
+    const listRes = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: filePath, direct_only: true })
+    });
+    const listData = await listRes.json();
+    if (listData.links && listData.links.length > 0) {
+      return listData.links[0].url.replace(/[?&]dl=0/, '').replace(/\?$/, '') + '?dl=1';
+    }
+
+    // Create new public shared link
+    const createRes = await fetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: filePath, settings: { requested_visibility: { '.tag': 'public' } } })
+    });
+    const createData = await createRes.json();
+    if (createData.url) return createData.url.replace(/[?&]dl=0/, '').replace(/\?$/, '') + '?dl=1';
+
+    // Handle "link already exists" race condition
+    if (createData.error && createData.error['.tag'] === 'shared_link_already_exists') {
+      const meta = createData.error.metadata;
+      if (meta && meta.url) return meta.url.replace(/[?&]dl=0/, '').replace(/\?$/, '') + '?dl=1';
+    }
+    return null;
+  } catch (e) {
+    console.error('[dropbox] shareLink error:', e.message);
+    return null;
+  }
+}
+
+// ── Metricool CSV generation ──────────────────────────────
+
+function csvField(value) {
+  const str = (value === null || value === undefined) ? '' : String(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+function generateMetricoolCSV(items) {
+  const headers = [
+    'Text', 'Date', 'Time', 'Draft',
+    'Facebook', 'Twitter', 'LinkedIn', 'Instagram', 'Pinterest', 'TikTok', 'Youtube', 'Threads', 'Bluesky',
+    'Picture Url 1', 'Picture Url 2', 'Picture Url 3', 'Picture Url 4', 'Picture Url 5',
+    'Picture Url 6', 'Picture Url 7', 'Picture Url 8', 'Picture Url 9', 'Picture Url 10',
+    'Instagram publish as', 'Brand name'
+  ];
+
+  const rows = items.map(item => {
+    const entry = outputStore.get(item.projectId);
+    if (!entry) return null;
+    return [
+      csvField(entry.caption),
+      csvField(item.date),
+      csvField(item.time),
+      'FALSE',
+      'FALSE', 'FALSE', 'FALSE',
+      item.instagram ? 'TRUE' : 'FALSE',
+      'FALSE',
+      item.tiktok ? 'TRUE' : 'FALSE',
+      'FALSE', 'FALSE', 'FALSE',
+      csvField(entry.shareLink || ''),
+      '', '', '', '', '', '', '', '', '',
+      item.instagram ? 'REEL' : '',
+      'PitchPulse'
+    ].join(',');
+  }).filter(Boolean);
+
+  return [headers.join(','), ...rows].join('\n');
+}
+
 // ── Callback render completato ────────────────────────────
 app.post('/callback', async (req, res) => {
   const { status, project, dropbox } = req.body;
@@ -1180,6 +1301,15 @@ app.post('/callback', async (req, res) => {
       await bot.telegram.sendMessage(process.env.TELEGRAM_CHAT_ID,
         `✅ *Render completato!*\n📁 \`${project}\`\n☁️ \`${dropbox}\``,
         { parse_mode: 'Markdown' });
+
+      const entry = { project, dropbox, caption: '', shareLink: null, timestamp: new Date().toISOString() };
+      outputStore.set(project, entry);
+
+      // Enrich async (non-blocking): read caption + generate share link
+      Promise.all([readCaptionFromDropbox(project), getDropboxShareLink(project)])
+        .then(([caption, shareLink]) => { entry.caption = caption; entry.shareLink = shareLink; })
+        .catch(e => console.error('[callback] enrich error:', e.message));
+
     } else {
       await bot.telegram.sendMessage(process.env.TELEGRAM_CHAT_ID,
         `❌ *Render fallito:* \`${project}\``,
@@ -1187,6 +1317,35 @@ app.post('/callback', async (req, res) => {
     }
   } catch (e) { console.error('Callback error:', e.message); }
   res.json({ ok: true });
+});
+
+// ── Metricool Bridge: Dashboard & API ────────────────────
+
+app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
+
+app.get('/api/outputs', (req, res) => {
+  const list = Array.from(outputStore.values())
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  res.json(list);
+});
+
+app.post('/api/outputs/:id/refresh-link', async (req, res) => {
+  const entry = outputStore.get(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Not found' });
+  const shareLink = await getDropboxShareLink(entry.project);
+  entry.shareLink = shareLink;
+  res.json({ shareLink });
+});
+
+app.post('/api/export-csv', async (req, res) => {
+  const { items } = req.body;
+  if (!items || !items.length) return res.status(400).json({ error: 'No items provided' });
+  const csv = generateMetricoolCSV(items);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="pitchpulse-metricool-${Date.now()}.csv"`);
+  res.send('﻿' + csv); // UTF-8 BOM for Excel compatibility
 });
 
 app.get('/health', (req, res) => res.json({ ok: true, bot: 'PitchPulse' }));
