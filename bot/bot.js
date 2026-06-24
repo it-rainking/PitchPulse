@@ -49,7 +49,7 @@ function linesOf(text) {
 
 // ── Helper: normalizza il post text — rimuove intestazioni e applica spaziatura ──
 // Elimina header tipo "=== PITCHPULSE ... ===" e tutte le righe di metadati,
-// poi applica 2 righe vuote tra i paragrafi e 3 righe vuote prima degli hashtag.
+// poi applica 2 righe vuote tra i paragrafi.
 function formatPostText(text) {
   const headerPatterns = [
     /^===\s*PITCHPULSE/i,
@@ -154,8 +154,8 @@ Write a social copy block for this ${momentLabel} card. Use ONLY data from the J
 Tone: high energy, punchy, data-first, never neutral.
 IMPORTANT: do NOT use country flag emoji (regional indicator pairs like 🇺🇸 or 🇧🇷) anywhere — they break on Windows. Use other emoji (⚽🔥💥📊) or plain text instead.
 
-Return ONLY the caption body below, no headers, no labels, no extra text.
-Use EXACTLY 2 blank lines between each of the first three paragraphs, and EXACTLY 3 blank lines before the hashtags:
+Return ONLY the caption body below, no headers, no labels, no extra text, no hashtags.
+Use EXACTLY 2 blank lines between each paragraph:
 
 [caption_hook from JSON - STRICTLY max 12 words, punchy, data-first]
 
@@ -164,11 +164,6 @@ Use EXACTLY 2 blank lines between each of the first three paragraphs, and EXACTL
 
 
 [1 question to drive comments - e.g. "Who wins this one? Drop your score below"]
-
-
-
-[hashtags.match] [hashtags.tournament] [hashtags.brand_pitchpulse] [hashtags.generic]
-#${moment} #matchday #stats #footballdata #WC2026
 
 JSON:
 ${JSON.stringify(jsonData, null, 2)}`;
@@ -196,8 +191,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
     return formatPostText(data.content[0].text.trim());
   } catch (err) {
     clearTimeout(timeout);
-    const hashtags = Object.values(jsonData.hashtags || {}).join(' ');
-    return `${jsonData.caption_hook || ''}\n\n\n\n${hashtags}`;
+    return jsonData.caption_hook || '';
   }
 }
 
@@ -310,8 +304,8 @@ Write a social copy block for this CURIOSITY card about: "${topic}". Use ONLY da
 Tone: mind-blowing, punchy, data-first, never neutral.
 IMPORTANT: do NOT use country flag emoji (regional indicator pairs like 🇺🇸 or 🇧🇷) anywhere — they break on Windows. Use other emoji (⚽🔥💥📊🧠) or plain text instead.
 
-Return ONLY the caption body below, no headers, no labels, no extra text.
-Use EXACTLY 2 blank lines between each of the first three paragraphs, and EXACTLY 3 blank lines before the hashtags:
+Return ONLY the caption body below, no headers, no labels, no extra text, no hashtags.
+Use EXACTLY 2 blank lines between each paragraph:
 
 [caption_hook from JSON - STRICTLY max 12 words]
 
@@ -320,11 +314,6 @@ Use EXACTLY 2 blank lines between each of the first three paragraphs, and EXACTL
 
 
 [1 CTA - e.g. "Follow @PitchPulse for more WC2026 facts"]
-
-
-
-[hashtags.topic] [hashtags.tournament] [hashtags.brand_pitchpulse] [hashtags.generic]
-#curiosity #footballfacts #WC2026facts
 
 JSON:
 ${JSON.stringify(jsonData, null, 2)}`;
@@ -355,8 +344,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
           return formatPostText(data.content[0].text.trim());
         } catch (err) {
           clearTimeout(timeout);
-          const hashtags = Object.values(jsonData.hashtags || {}).join(' ');
-          return `${jsonData.caption_hook || ''}\n\n\n\n${hashtags}`;
+          return jsonData.caption_hook || '';
         }
       })()
     ]);
@@ -642,8 +630,8 @@ Write a social copy block for this HIGHLIGHTS recap. Use ONLY data from the JSON
 Tone: high energy, punchy, data-first, never neutral.
 IMPORTANT: do NOT use country flag emoji (regional indicator pairs like 🇺🇸 or 🇧🇷) anywhere — they break on Windows. Use other emoji (⚽🔥💥📊) or plain text instead.
 
-Return ONLY the caption body below, no headers, no labels, no extra text.
-Use EXACTLY 2 blank lines between each of the first three paragraphs, and EXACTLY 3 blank lines before the hashtags:
+Return ONLY the caption body below, no headers, no labels, no extra text, no hashtags.
+Use EXACTLY 2 blank lines between each paragraph:
 
 [caption_hook from JSON - STRICTLY max 12 words]
 
@@ -653,11 +641,6 @@ Use EXACTLY 2 blank lines between each of the first three paragraphs, and EXACTL
 
 
 [1 CTA - e.g. "Follow @PitchPulse for every result 👇"]
-
-
-
-[hashtags.matchday] [hashtags.tournament] [hashtags.brand_pitchpulse] [hashtags.generic]
-#highlights #results #WC2026recap
 
 JSON:
 ${JSON.stringify(jsonData, null, 2)}`;
@@ -688,8 +671,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
           return formatPostText(data.content[0].text.trim());
         } catch (err) {
           clearTimeout(timeout);
-          const hashtags = Object.values(jsonData.hashtags || {}).join(' ');
-          return `${jsonData.caption_hook || ''}\n\n\n\n${hashtags}`;
+          return jsonData.caption_hook || '';
         }
       })()
     ]);
@@ -839,8 +821,8 @@ Write a social copy block for this GROUP HIGHLIGHTS card. Use ONLY data from the
 Tone: high energy, punchy, data-first, never neutral.
 IMPORTANT: do NOT use country flag emoji (regional indicator pairs like 🇲🇽 or 🇰🇷) anywhere — they break on Windows. Use other emoji (⚽🔥💥📊) or plain text instead.
 
-Return ONLY the caption body below, no headers, no labels, no extra text.
-Use EXACTLY 2 blank lines between each of the first three paragraphs, and EXACTLY 3 blank lines before the hashtags:
+Return ONLY the caption body below, no headers, no labels, no extra text, no hashtags.
+Use EXACTLY 2 blank lines between each paragraph:
 
 [caption_hook from JSON - STRICTLY max 12 words]
 
@@ -850,11 +832,6 @@ Use EXACTLY 2 blank lines between each of the first three paragraphs, and EXACTL
 
 
 [1 CTA - e.g. "Follow @PitchPulse for every group update 📊"]
-
-
-
-[hashtags.group] [hashtags.tournament] [hashtags.brand_pitchpulse] [hashtags.generic]
-#groupstage #standings #WC2026group
 
 JSON:
 ${JSON.stringify(jsonData, null, 2)}`;
@@ -885,8 +862,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
           return formatPostText(data.content[0].text.trim());
         } catch (err) {
           clearTimeout(timeout);
-          const hashtags = Object.values(jsonData.hashtags || {}).join(' ');
-          return `${jsonData.caption_hook || ''}\n\n\n\n${hashtags}`;
+          return jsonData.caption_hook || '';
         }
       })()
     ]);
