@@ -131,6 +131,7 @@ The JSON uses these field names — always read them exactly:
 - player_watch.name / player_watch.team / player_watch.stat
 - stats[0..2].label / stats[0..2].value / stats[0..2].context
 - caption_hook / score_a / score_b / minute
+- engagement_question (string or null — the engagement question for the last-3-second screen)
 - match_status (live only — "not_started" | "live" | "halftime" | "finished", null for other moments)
 - key_events[] (live only — array of {minute, type, team, player, detail}; type is "goal" | "red_card" | "yellow_card" | "penalty" | "var"; empty array [] if no events yet)
 - source_note (live only — internal debug string, NEVER render this on screen, do not include in any visible element)
@@ -288,3 +289,67 @@ Sections:
 8. Footer: @PitchPulse + hashtags
 
 OVERFLOW NOTE: standings (4 × 56px) + played_matches (max 2 × 72px) + upcoming (max 3 × 48px) + header/footer/dividers ≈ 1150px total — fits within safe zone. If played_matches > 4 entries, show only the 4 most recent.
+
+### 20. ENGAGEMENT QUESTION SCREEN (applies to ALL templates):
+
+When `engagement_question` is present and non-null in the JSON, add two things:
+
+**A) Fade-out on `.content-wrapper` at second 12:**
+Add this animation to the existing `.content-wrapper` CSS rule:
+```
+animation: contentOut 0.5s ease-in 12s forwards;
+```
+And define:
+```css
+@keyframes contentOut { from { opacity:1; } to { opacity:0; } }
+```
+
+**B) Full-screen question element — add as last child of `#root`, before the `<script>` tag:**
+```html
+<div class="question-screen">
+  <div class="qs-pip">💬</div>
+  <div class="qs-label">YOUR TAKE</div>
+  <div class="qs-text">[engagement_question value from JSON]</div>
+  <div class="qs-cta">↓ drop your answer below</div>
+</div>
+```
+
+CSS:
+```css
+.question-screen {
+  position:absolute; inset:0;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:160px 80px 320px;
+  background:rgba(10,14,42,0.82);
+  text-align:center;
+  opacity:0;
+  animation:questionIn 0.6s ease-out 12.4s forwards;
+  z-index:25;
+}
+.qs-pip { font-size:80px; margin-bottom:28px; }
+.qs-label {
+  font-family:'Barlow Condensed'; font-weight:700;
+  font-size:30px; letter-spacing:6px; text-transform:uppercase;
+  color:var(--cyan); margin-bottom:28px;
+}
+.qs-text {
+  font-family:'Bebas Neue'; font-size:80px; line-height:1.08;
+  color:#FFFFFF; text-shadow:0 0 60px rgba(0,245,255,0.35);
+  margin-bottom:48px;
+}
+.qs-cta {
+  font-family:'Barlow'; font-weight:500;
+  font-size:30px; color:rgba(255,255,255,0.55); letter-spacing:2px;
+}
+@keyframes questionIn {
+  from { opacity:0; transform:scale(0.97); }
+  to   { opacity:1; transform:scale(1); }
+}
+```
+
+Moment color overrides for `.qs-label`:
+- LIVE: `color:var(--live)` (#FF3B3B) and `text-shadow:0 0 60px rgba(255,59,59,0.35)` on `.qs-text`
+- POSTMATCH / HIGHLIGHTS / GROUP_HL: `color:var(--gold)` (#FFD166) and `text-shadow:0 0 60px rgba(255,209,102,0.35)` on `.qs-text`
+- TEASER / CURIOSITY: `color:var(--accent)` (#FF2D7A)
+
+If `engagement_question` is null or missing: do NOT render `.question-screen` and do NOT add the contentOut animation.
