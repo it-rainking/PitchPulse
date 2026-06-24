@@ -308,9 +308,9 @@ And define:
 ```html
 <div class="question-screen">
   <div class="qs-pip">💬</div>
-  <div class="qs-label">DIMMI TU</div>
+  <div class="qs-label">YOUR TAKE</div>
   <div class="qs-text">[engagement_question value from JSON]</div>
-  <div class="qs-cta">↓ rispondi nei commenti</div>
+  <div class="qs-cta">↓ drop your answer below</div>
 </div>
 ```
 
