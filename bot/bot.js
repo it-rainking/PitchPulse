@@ -86,6 +86,14 @@ function formatPostText(text) {
   return content.join('\n\n\n') + '\n\n\n\n' + hash;
 }
 
+// ── Helper: estrae la domanda di engagement dall'ultimo paragrafo del copy ──
+function extractEngagementQuestion(postText) {
+  const paragraphs = postText.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+  if (!paragraphs.length) return null;
+  const last = paragraphs[paragraphs.length - 1];
+  return last.startsWith('#') ? null : last;
+}
+
 // ── ASSET REGISTRY ────────────────────────────────────────
 // Modifica qui per aggiungere/cambiare audio, video e path
 const ASSETS = {
@@ -318,36 +326,36 @@ Use EXACTLY 2 blank lines between each paragraph:
 JSON:
 ${JSON.stringify(jsonData, null, 2)}`;
 
-    const [{ html, claudePayload }, postText] = await Promise.all([
-      generateHTML(jsonData, 'curiosity'),
-      (async () => {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 60000);
-        try {
-          const res = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-              'x-api-key': ANTHROPIC_API_KEY,
-              'anthropic-version': '2023-06-01',
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              model: 'claude-haiku-4-5',
-              max_tokens: 1000,
-              messages: [{ role: 'user', content: copyPrompt }]
-            })
-          });
-          clearTimeout(timeout);
-          const data = await res.json();
-          if (!data.content || !data.content[0]) throw new Error('Claude copy error');
-          return formatPostText(data.content[0].text.trim());
-        } catch (err) {
-          clearTimeout(timeout);
-          return jsonData.caption_hook || '';
-        }
-      })()
-    ]);
+    const postText = await (async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000);
+      try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'x-api-key': ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5',
+            max_tokens: 1000,
+            messages: [{ role: 'user', content: copyPrompt }]
+          })
+        });
+        clearTimeout(timeout);
+        const data = await res.json();
+        if (!data.content || !data.content[0]) throw new Error('Claude copy error');
+        return formatPostText(data.content[0].text.trim());
+      } catch (err) {
+        clearTimeout(timeout);
+        return jsonData.caption_hook || '';
+      }
+    })();
+    jsonData.engagement_question = extractEngagementQuestion(postText) || null;
+
+    const { html, claudePayload } = await generateHTML(jsonData, 'curiosity');
 
     await ctx.reply('🎬 Avviando render...');
     const base = RAILWAY_PUBLIC_URL || '';
@@ -645,36 +653,36 @@ Use EXACTLY 2 blank lines between each paragraph:
 JSON:
 ${JSON.stringify(jsonData, null, 2)}`;
 
-    const [{ html, claudePayload }, postText] = await Promise.all([
-      generateHTML(jsonData, 'highlights'),
-      (async () => {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 60000);
-        try {
-          const res = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-              'x-api-key': ANTHROPIC_API_KEY,
-              'anthropic-version': '2023-06-01',
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              model: 'claude-haiku-4-5',
-              max_tokens: 1000,
-              messages: [{ role: 'user', content: copyPrompt }]
-            })
-          });
-          clearTimeout(timeout);
-          const data = await res.json();
-          if (!data.content || !data.content[0]) throw new Error('Claude copy error');
-          return formatPostText(data.content[0].text.trim());
-        } catch (err) {
-          clearTimeout(timeout);
-          return jsonData.caption_hook || '';
-        }
-      })()
-    ]);
+    const postText = await (async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000);
+      try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'x-api-key': ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5',
+            max_tokens: 1000,
+            messages: [{ role: 'user', content: copyPrompt }]
+          })
+        });
+        clearTimeout(timeout);
+        const data = await res.json();
+        if (!data.content || !data.content[0]) throw new Error('Claude copy error');
+        return formatPostText(data.content[0].text.trim());
+      } catch (err) {
+        clearTimeout(timeout);
+        return jsonData.caption_hook || '';
+      }
+    })();
+    jsonData.engagement_question = extractEngagementQuestion(postText) || null;
+
+    const { html, claudePayload } = await generateHTML(jsonData, 'highlights');
 
     await ctx.reply('🎬 Avviando render...');
     const base = RAILWAY_PUBLIC_URL || '';
@@ -836,36 +844,36 @@ Use EXACTLY 2 blank lines between each paragraph:
 JSON:
 ${JSON.stringify(jsonData, null, 2)}`;
 
-    const [{ html, claudePayload }, postText] = await Promise.all([
-      generateHTML(jsonData, 'group_hl'),
-      (async () => {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 60000);
-        try {
-          const res = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-              'x-api-key':          ANTHROPIC_API_KEY,
-              'anthropic-version':  '2023-06-01',
-              'Content-Type':       'application/json'
-            },
-            body: JSON.stringify({
-              model:      'claude-haiku-4-5',
-              max_tokens: 1000,
-              messages:   [{ role: 'user', content: copyPrompt }]
-            })
-          });
-          clearTimeout(timeout);
-          const data = await res.json();
-          if (!data.content || !data.content[0]) throw new Error('Claude copy error');
-          return formatPostText(data.content[0].text.trim());
-        } catch (err) {
-          clearTimeout(timeout);
-          return jsonData.caption_hook || '';
-        }
-      })()
-    ]);
+    const postText = await (async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000);
+      try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'x-api-key':          ANTHROPIC_API_KEY,
+            'anthropic-version':  '2023-06-01',
+            'Content-Type':       'application/json'
+          },
+          body: JSON.stringify({
+            model:      'claude-haiku-4-5',
+            max_tokens: 1000,
+            messages:   [{ role: 'user', content: copyPrompt }]
+          })
+        });
+        clearTimeout(timeout);
+        const data = await res.json();
+        if (!data.content || !data.content[0]) throw new Error('Claude copy error');
+        return formatPostText(data.content[0].text.trim());
+      } catch (err) {
+        clearTimeout(timeout);
+        return jsonData.caption_hook || '';
+      }
+    })();
+    jsonData.engagement_question = extractEngagementQuestion(postText) || null;
+
+    const { html, claudePayload } = await generateHTML(jsonData, 'group_hl');
 
     await ctx.reply('🎬 Avviando render...');
     const base = RAILWAY_PUBLIC_URL || '';
@@ -970,11 +978,12 @@ async function handleMoment(ctx, moment) {
     await ctx.reply('📊 Raccogliendo dati...');
     const { data: jsonData, promptUsed } = await getMatchData(teamA, teamB, moment);
 
-    await ctx.reply('🎨 Generando HTML e copy...');
-    const [{ html, claudePayload }, postText] = await Promise.all([
-      generateHTML(jsonData, moment),
-      generateCopy(jsonData, moment, teamA, teamB)
-    ]);
+    await ctx.reply('🎨 Generando copy...');
+    const postText = await generateCopy(jsonData, moment, teamA, teamB);
+    jsonData.engagement_question = extractEngagementQuestion(postText) || null;
+
+    await ctx.reply('🎨 Generando HTML...');
+    const { html, claudePayload } = await generateHTML(jsonData, moment);
 
     await ctx.reply('🎬 Avviando render...');
     const base = RAILWAY_PUBLIC_URL || '';
