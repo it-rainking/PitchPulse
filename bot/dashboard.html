@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PitchPulse → Metricool</title>
+  <style>
+    :root {
+      --bg: #0A0E2A;
+      --surface: #12183D;
+      --surface2: #1A2150;
+      --cyan: #00F5FF;
+      --violet: #7B2FFF;
+      --gold: #FFD166;
+      --pink: #FF2D7A;
+      --text: #E8EAF6;
+      --muted: #6B7499;
+      --border: #1E2A5E;
+      --success: #00C896;
+      --danger: #FF3B3B;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+    header {
+      padding: 20px 32px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: var(--surface);
+    }
+    .logo {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--cyan);
+    }
+    .logo span { color: var(--muted); font-weight: 400; }
+    .badge {
+      background: var(--violet);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 100px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .refresh-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.15s;
+    }
+    .refresh-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+    #auto-refresh-label { color: var(--muted); font-size: 12px; }
+
+    main { padding: 24px 32px; max-width: 1200px; }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .toolbar h2 { font-size: 16px; font-weight: 600; color: var(--text); }
+    #select-all-btn, #export-btn {
+      padding: 8px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      transition: all 0.15s;
+    }
+    #select-all-btn {
+      background: var(--surface2);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    #select-all-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+    #export-btn {
+      background: var(--cyan);
+      color: var(--bg);
+      margin-left: auto;
+    }
+    #export-btn:hover { background: #00d8e8; }
+    #export-btn:disabled { background: var(--surface2); color: var(--muted); cursor: not-allowed; }
+    .selected-count { color: var(--muted); font-size: 12px; }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+    .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+    .empty-state p { font-size: 15px; }
+    .empty-state small { font-size: 12px; margin-top: 8px; display: block; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    thead tr {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      padding: 10px 12px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+    th:nth-child(1) { width: 36px; }
+    th:nth-child(2) { width: 180px; }
+    th:nth-child(3) { width: 80px; }
+    th:nth-child(4) { /* caption */ }
+    th:nth-child(5) { width: 120px; }
+    th:nth-child(6) { width: 110px; }
+    th:nth-child(7) { width: 120px; }
+    th:nth-child(8) { width: 80px; }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s;
+    }
+    tbody tr:hover { background: rgba(0,245,255,0.02); }
+    tbody tr.selected { background: rgba(0,245,255,0.05); }
+    td { padding: 10px 12px; vertical-align: middle; }
+
+    .moment-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .moment-prematch  { background: rgba(123,47,255,0.25); color: #B084FF; }
+    .moment-live      { background: rgba(255,59,59,0.2);  color: #FF3B3B; }
+    .moment-postmatch { background: rgba(255,209,102,0.2); color: #FFD166; }
+    .moment-teaser    { background: rgba(0,245,255,0.15); color: var(--cyan); }
+    .moment-curiosity { background: rgba(255,45,122,0.15); color: #FF6DA8; }
+    .moment-highlights { background: rgba(0,200,150,0.15); color: var(--success); }
+    .moment-group_hl  { background: rgba(0,200,150,0.15); color: var(--success); }
+
+    .project-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .project-time {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .caption-preview {
+      font-size: 12px;
+      color: var(--muted);
+      max-height: 40px;
+      overflow: hidden;
+      line-height: 1.4;
+    }
+    .caption-preview.loading { color: var(--border); font-style: italic; }
+
+    .link-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot-ok     { background: var(--success); }
+    .dot-wait   { background: var(--gold); animation: pulse 1.2s infinite; }
+    .dot-err    { background: var(--danger); }
+    .link-text  { font-size: 11px; color: var(--muted); }
+    .refresh-link-btn {
+      background: none; border: none; color: var(--cyan); cursor: pointer;
+      font-size: 11px; padding: 0; text-decoration: underline;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; } 50% { opacity: 0.3; }
+    }
+
+    .platforms { display: flex; gap: 8px; }
+    .platform-toggle {
+      display: flex; align-items: center; gap: 4px;
+      cursor: pointer; user-select: none;
+    }
+    .platform-toggle input[type=checkbox] { display: none; }
+    .platform-chip {
+      padding: 3px 8px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 700;
+      border: 1.5px solid var(--border);
+      color: var(--muted);
+      transition: all 0.15s;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    input[type=checkbox]:checked + .platform-chip.ig {
+      border-color: #E1306C; background: rgba(225,48,108,0.15); color: #E1306C;
+    }
+    input[type=checkbox]:checked + .platform-chip.tt {
+      border-color: #fff; background: rgba(255,255,255,0.1); color: #fff;
+    }
+
+    .schedule-inputs { display: flex; flex-direction: column; gap: 4px; }
+    .schedule-inputs input {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 12px;
+      padding: 4px 8px;
+      width: 108px;
+      outline: none;
+    }
+    .schedule-inputs input:focus { border-color: var(--cyan); }
+
+    .check-cell input[type=checkbox] {
+      width: 16px; height: 16px; cursor: pointer;
+      accent-color: var(--cyan);
+    }
+
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--cyan);
+      color: var(--text);
+      padding: 12px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all 0.25s;
+      z-index: 1000;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.error { border-left-color: var(--danger); }
+  </style>
+</head>
+<body>
+<header>
+  <div class="logo">PitchPulse <span>→</span> Metricool</div>
+  <div class="badge">Bridge</div>
+  <div class="header-right">
+    <span id="auto-refresh-label">Auto-refresh 30s</span>
+    <button class="refresh-btn" onclick="loadOutputs()">↻ Aggiorna</button>
+  </div>
+</header>
+
+<main>
+  <div class="toolbar">
+    <h2>Output pronti</h2>
+    <button id="select-all-btn" onclick="toggleSelectAll()">Seleziona tutti</button>
+    <span class="selected-count" id="selected-count"></span>
+    <button id="export-btn" onclick="exportCSV()" disabled>⬇ Esporta CSV Metricool</button>
+  </div>
+
+  <div id="table-container">
+    <div class="empty-state">
+      <div class="icon">⏳</div>
+      <p>Caricamento...</p>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let outputs = [];
+let allSelected = false;
+
+function parseProject(name) {
+  const parts = name.split('-');
+  const moment = parts[0] === 'group' ? 'group_hl' : parts[0];
+  const teams = parts.slice(1, -1).join('-') || '';
+  const tsRaw = parts[parts.length - 1];
+  const ts = /^\d+$/.test(tsRaw) ? new Date(parseInt(tsRaw)).toLocaleString('it-IT') : tsRaw;
+  return { moment, teams, ts };
+}
+
+function momentClass(m) {
+  return 'moment-' + (m || 'prematch').replace('_', '_');
+}
+
+function formatCaptionPreview(text) {
+  if (!text) return '<span class="loading">caption in caricamento...</span>';
+  const first = text.split('\n').filter(l => l.trim()).slice(0, 2).join(' · ');
+  return first.length > 90 ? first.slice(0, 90) + '…' : first;
+}
+
+function linkStatusHTML(entry) {
+  if (entry.shareLink) {
+    return `<div class="link-status"><div class="dot dot-ok"></div><span class="link-text">Pronto</span></div>`;
+  }
+  const isNew = (Date.now() - new Date(entry.timestamp).getTime()) < 300000; // <5min
+  if (isNew) {
+    return `<div class="link-status"><div class="dot dot-wait"></div><span class="link-text">In attesa...</span></div>`;
+  }
+  return `<div class="link-status"><div class="dot dot-err"></div>
+    <button class="refresh-link-btn" onclick="refreshLink('${entry.project}')">Genera link</button></div>`;
+}
+
+function renderTable(data) {
+  if (!data.length) {
+    document.getElementById('table-container').innerHTML = `
+      <div class="empty-state">
+        <div class="icon">📭</div>
+        <p>Nessun output ancora</p>
+        <small>Gli output appariranno qui al termine di ogni render PitchPulse</small>
+      </div>`;
+    updateExportBtn();
+    return;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const defaultTime = '10:00';
+
+  const rows = data.map(entry => {
+    const { moment, teams, ts } = parseProject(entry.project);
+    const teamsDisplay = teams.replace('vs', ' vs ').toUpperCase();
+    const isSelected = document.getElementById(`chk-${entry.project}`)?.checked || false;
+
+    const dateVal = document.getElementById(`date-${entry.project}`)?.value || today;
+    const timeVal = document.getElementById(`time-${entry.project}`)?.value || defaultTime;
+    const igChecked = document.getElementById(`ig-${entry.project}`)?.checked !== false;
+    const ttChecked = document.getElementById(`tt-${entry.project}`)?.checked !== false;
+
+    return `<tr id="row-${entry.project}" class="${isSelected ? 'selected' : ''}">
+      <td class="check-cell">
+        <input type="checkbox" id="chk-${entry.project}" onchange="onRowSelect(this, '${entry.project}')">
+      </td>
+      <td>
+        <div class="project-name">${entry.project}</div>
+        <div class="project-time">${ts}</div>
+      </td>
+      <td><span class="moment-badge ${momentClass(moment)}">${moment}</span></td>
+      <td><div class="caption-preview">${formatCaptionPreview(entry.caption)}</div></td>
+      <td>${linkStatusHTML(entry)}</td>
+      <td class="platforms">
+        <label class="platform-toggle">
+          <input type="checkbox" id="ig-${entry.project}" ${igChecked ? 'checked' : ''}>
+          <span class="platform-chip ig">IG</span>
+        </label>
+        <label class="platform-toggle">
+          <input type="checkbox" id="tt-${entry.project}" ${ttChecked ? 'checked' : ''}>
+          <span class="platform-chip tt">TT</span>
+        </label>
+      </td>
+      <td class="schedule-inputs">
+        <input type="date" id="date-${entry.project}" value="${dateVal}">
+        <input type="time" id="time-${entry.project}" value="${timeVal}">
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('table-container').innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Progetto</th>
+          <th>Tipo</th>
+          <th>Caption</th>
+          <th>Video link</th>
+          <th>Piattaforme</th>
+          <th>Schedulazione</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  updateExportBtn();
+}
+
+function onRowSelect(chk, project) {
+  const row = document.getElementById(`row-${project}`);
+  if (chk.checked) row.classList.add('selected');
+  else row.classList.remove('selected');
+  updateExportBtn();
+}
+
+function toggleSelectAll() {
+  allSelected = !allSelected;
+  outputs.forEach(entry => {
+    const chk = document.getElementById(`chk-${entry.project}`);
+    const row = document.getElementById(`row-${entry.project}`);
+    if (chk) { chk.checked = allSelected; row?.classList.toggle('selected', allSelected); }
+  });
+  document.getElementById('select-all-btn').textContent = allSelected ? 'Deseleziona tutti' : 'Seleziona tutti';
+  updateExportBtn();
+}
+
+function updateExportBtn() {
+  const count = outputs.filter(e => document.getElementById(`chk-${e.project}`)?.checked).length;
+  const btn = document.getElementById('export-btn');
+  const label = document.getElementById('selected-count');
+  btn.disabled = count === 0;
+  label.textContent = count > 0 ? `${count} selezionat${count === 1 ? 'o' : 'i'}` : '';
+}
+
+async function loadOutputs() {
+  try {
+    const res = await fetch('/api/outputs');
+    const data = await res.json();
+    outputs = data;
+    renderTable(data);
+  } catch (e) {
+    showToast('Errore caricamento outputs', 'error');
+  }
+}
+
+async function refreshLink(projectId) {
+  showToast('Generazione link in corso...');
+  try {
+    const res = await fetch(`/api/outputs/${encodeURIComponent(projectId)}/refresh-link`, { method: 'POST' });
+    const data = await res.json();
+    const entry = outputs.find(o => o.project === projectId);
+    if (entry && data.shareLink) {
+      entry.shareLink = data.shareLink;
+      renderTable(outputs);
+      showToast('Link generato con successo!');
+    } else {
+      showToast('Impossibile generare il link', 'error');
+    }
+  } catch (e) {
+    showToast('Errore generazione link', 'error');
+  }
+}
+
+async function exportCSV() {
+  const items = outputs
+    .filter(e => document.getElementById(`chk-${e.project}`)?.checked)
+    .map(e => {
+      const missing = !e.shareLink;
+      return {
+        projectId: e.project,
+        date: document.getElementById(`date-${e.project}`)?.value || '',
+        time: document.getElementById(`time-${e.project}`)?.value || '',
+        instagram: document.getElementById(`ig-${e.project}`)?.checked || false,
+        tiktok: document.getElementById(`tt-${e.project}`)?.checked || false,
+        missingLink: missing
+      };
+    });
+
+  if (!items.length) return;
+
+  const noLink = items.filter(i => i.missingLink);
+  if (noLink.length) {
+    const ok = confirm(`${noLink.length} output non hanno ancora il link video. Vuoi esportare comunque (la colonna Picture Url sarà vuota)?`);
+    if (!ok) return;
+  }
+
+  try {
+    const res = await fetch('/api/export-csv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items })
+    });
+    if (!res.ok) throw new Error('Server error');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pitchpulse-metricool-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`CSV esportato con ${items.length} post!`);
+  } catch (e) {
+    showToast('Errore esportazione CSV', 'error');
+  }
+}
+
+function showToast(msg, type = 'ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type === 'error' ? ' error' : '');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.className = 'toast'; }, 3500);
+}
+
+// Auto-refresh: re-fetch data ogni 30s, preservando selezioni e valori
+setInterval(async () => {
+  try {
+    const res = await fetch('/api/outputs');
+    const data = await res.json();
+    outputs = data;
+    renderTable(data);
+  } catch (e) {}
+}, 30000);
+
+loadOutputs();
+</script>
+</body>
+</html>
