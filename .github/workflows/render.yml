@@ -217,6 +217,15 @@ jobs:
           const { Dropbox, DropboxAuth } = require('dropbox');
           const fetch = require('node-fetch');
 
+          async function withRetry(fn, maxAttempts = 3, baseDelay = 2000) {
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+              try { return await fn(); } catch (e) {
+                if (attempt === maxAttempts) throw e;
+                await new Promise(r => setTimeout(r, baseDelay * attempt));
+              }
+            }
+          }
+
           (async () => {
             const auth = new DropboxAuth({
               clientId: process.env.DBX_APP_KEY,
@@ -224,7 +233,7 @@ jobs:
               refreshToken: process.env.DBX_REFRESH_TOKEN,
               fetch
             });
-            await auth.refreshAccessToken();
+            await withRetry(() => auth.refreshAccessToken());
             const dbx = new Dropbox({ auth, fetch });
 
             const project = '${{ github.event.inputs.project }}';
