@@ -1199,19 +1199,27 @@ async function handleBatchStop(ctx) {
 // ── Metricool Bridge: Dropbox helpers ────────────────────
 
 async function getDropboxAccessToken() {
-  const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: process.env.DBX_REFRESH_TOKEN,
-      client_id: process.env.DBX_APP_KEY,
-      client_secret: process.env.DBX_APP_SECRET
-    })
-  });
-  const data = await res.json();
-  if (!data.access_token) throw new Error('Dropbox token refresh failed');
-  return data.access_token;
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: process.env.DBX_REFRESH_TOKEN,
+          client_id: process.env.DBX_APP_KEY,
+          client_secret: process.env.DBX_APP_SECRET
+        })
+      });
+      const data = await res.json();
+      if (!data.access_token) throw new Error('Dropbox token refresh failed: ' + JSON.stringify(data));
+      return data.access_token;
+    } catch (e) {
+      if (attempt === maxAttempts) throw e;
+      await new Promise(r => setTimeout(r, 2000 * attempt));
+    }
+  }
 }
 
 async function readCaptionFromDropbox(projectName) {
