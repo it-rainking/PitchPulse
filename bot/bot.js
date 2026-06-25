@@ -90,6 +90,41 @@ function formatPostText(text) {
   return content.join('\n\n\n') + '\n\n\n\n' + hash;
 }
 
+// ── Helper: escape literal control chars inside JSON string values ──────────
+function escapeStringControlChars(s) {
+  let result = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (escaped) { result += c; escaped = false; continue; }
+    if (c === '\\') { result += c; escaped = true; continue; }
+    if (c === '"') { result += c; inString = !inString; continue; }
+    if (inString) {
+      if (c === '\n') { result += '\\n'; continue; }
+      if (c === '\r') { result += '\\r'; continue; }
+      if (c === '\t') { result += '\\t'; continue; }
+    }
+    result += c;
+  }
+  return result;
+}
+
+// ── Helper: parse JSON from Perplexity with multi-strategy repair ────────────
+// Handles trailing commas and unescaped control chars — both common in AI output.
+function parsePerplexityJSON(raw) {
+  try { return JSON.parse(raw); } catch (_) {}
+
+  const noTrailing = raw.replace(/,(\s*[}\]])/g, '$1');
+  try { return JSON.parse(noTrailing); } catch (_) {}
+
+  const escaped = escapeStringControlChars(noTrailing);
+  try { return JSON.parse(escaped); } catch (e) {
+    console.error('[parsePerplexityJSON] fallito dopo repair:', raw.substring(0, 500));
+    throw e;
+  }
+}
+
 // ── Helper: estrae la domanda di engagement dall'ultimo paragrafo del copy ──
 function extractEngagementQuestion(postText) {
   const paragraphs = postText.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
@@ -287,9 +322,9 @@ async function getCuriosityData(topic) {
   }
 
   try {
-    return { data: JSON.parse(jsonMatch[0]), promptUsed: prompt };
+    return { data: parsePerplexityJSON(jsonMatch[0]), promptUsed: prompt };
   } catch (parseErr) {
-    console.error('[Perplexity/curiosity] JSON non valido:', jsonMatch[0].substring(0, 300));
+    console.error('[Perplexity/curiosity] JSON non valido:', jsonMatch[0].substring(0, 500));
     throw new Error('JSON Perplexity curiosity non parsabile: ' + parseErr.message);
   }
 }
@@ -512,9 +547,9 @@ async function getMatchData(teamA, teamB, moment) {
   }
 
   try {
-    return { data: JSON.parse(jsonMatch[0]), promptUsed: prompt };
+    return { data: parsePerplexityJSON(jsonMatch[0]), promptUsed: prompt };
   } catch (parseErr) {
-    console.error('[Perplexity] JSON non valido:', jsonMatch[0].substring(0, 300));
+    console.error('[Perplexity] JSON non valido:', jsonMatch[0].substring(0, 500));
     throw new Error('JSON Perplexity non parsabile: ' + parseErr.message);
   }
 }
@@ -613,9 +648,9 @@ async function getHighlightsData(matchday) {
   }
 
   try {
-    return { data: JSON.parse(jsonMatch[0]), promptUsed: prompt };
+    return { data: parsePerplexityJSON(jsonMatch[0]), promptUsed: prompt };
   } catch (parseErr) {
-    console.error('[Perplexity/highlights] JSON non valido:', jsonMatch[0].substring(0, 300));
+    console.error('[Perplexity/highlights] JSON non valido:', jsonMatch[0].substring(0, 500));
     throw new Error('JSON Perplexity highlights non parsabile: ' + parseErr.message);
   }
 }
@@ -804,9 +839,9 @@ async function getGroupHlData(group) {
   }
 
   try {
-    return { data: JSON.parse(jsonMatch[0]), promptUsed: prompt };
+    return { data: parsePerplexityJSON(jsonMatch[0]), promptUsed: prompt };
   } catch (parseErr) {
-    console.error('[Perplexity/group_hl] JSON non valido:', jsonMatch[0].substring(0, 300));
+    console.error('[Perplexity/group_hl] JSON non valido:', jsonMatch[0].substring(0, 500));
     throw new Error('JSON Perplexity group_hl non parsabile: ' + parseErr.message);
   }
 }
