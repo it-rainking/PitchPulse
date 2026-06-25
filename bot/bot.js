@@ -1404,8 +1404,8 @@ if (RAILWAY_PUBLIC_URL) {
 }
 
 console.log('PitchPulse Bot avviato');
-process.once('SIGINT',  () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+process.once('SIGINT',  () => bot.stop('SIGINT').finally(() => process.exit(0)));
+process.once('SIGTERM', () => bot.stop('SIGTERM').finally(() => process.exit(0)));
 
 // ── Export condizionale per testing ───────────────────────
 // Se questo file viene RICHIESTO da un altro script (es. test-live-real.js)
