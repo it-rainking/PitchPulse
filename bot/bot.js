@@ -120,9 +120,11 @@ function escapeStringControlChars(s) {
     if (c === '\\') { result += c; escaped = true; continue; }
     if (c === '"') { result += c; inString = !inString; continue; }
     if (inString) {
+      const code = c.charCodeAt(0);
       if (c === '\n') { result += '\\n'; continue; }
       if (c === '\r') { result += '\\r'; continue; }
       if (c === '\t') { result += '\\t'; continue; }
+      if (code < 0x20) { result += `\\u${code.toString(16).padStart(4, '0')}`; continue; }
     }
     result += c;
   }
@@ -192,6 +194,13 @@ function getAssetPaths(moment) {
     audio_src: ASSETS.paths.audio + audioFile,
     video_src: ASSETS.paths.video + videoFile
   };
+}
+
+// ── Helper: costruisce URL Railway aggiungendo lo schema se mancante ──
+function buildRailwayUrl(path) {
+  const base = RAILWAY_PUBLIC_URL;
+  if (!base) return '';
+  return base.startsWith('http') ? `${base}${path}` : `https://${base}${path}`;
 }
 
 // ── Helper: data corrente formattata ──────────────────────
@@ -416,8 +425,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
     const { html, claudePayload } = await generateHTML(jsonData, 'curiosity');
 
     await ctx.reply('🎬 Avviando render...');
-    const base = RAILWAY_PUBLIC_URL || '';
-    const callbackUrl = base ? `${base.startsWith('https') ? '' : 'https://'}${base}/callback` : '';
+    const callbackUrl = buildRailwayUrl('/callback');
 
     const triggered = await triggerRender(html, projectName, callbackUrl, postText, promptUsed, claudePayload);
 
@@ -743,8 +751,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
     const { html, claudePayload } = await generateHTML(jsonData, 'highlights');
 
     await ctx.reply('🎬 Avviando render...');
-    const base = RAILWAY_PUBLIC_URL || '';
-    const callbackUrl = base ? `${base.startsWith('https') ? '' : 'https://'}${base}/callback` : '';
+    const callbackUrl = buildRailwayUrl('/callback');
 
     const triggered = await triggerRender(html, projectName, callbackUrl, postText, promptUsed, claudePayload);
 
@@ -934,8 +941,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
     const { html, claudePayload } = await generateHTML(jsonData, 'group_hl');
 
     await ctx.reply('🎬 Avviando render...');
-    const base = RAILWAY_PUBLIC_URL || '';
-    const callbackUrl = base ? `${base.startsWith('https') ? '' : 'https://'}${base}/callback` : '';
+    const callbackUrl = buildRailwayUrl('/callback');
 
     const triggered = await triggerRender(html, projectName, callbackUrl, postText, promptUsed, claudePayload);
 
@@ -978,7 +984,7 @@ async function generateHTML(jsonData, moment) {
     const data = await res.json();
     if (!data.content || !data.content[0]) throw new Error('Claude error: ' + JSON.stringify(data));
     let html = data.content[0].text;
-    html = html.replace(/^```html\n?/, '').replace(/\n?```$/, '').trim();
+    html = html.replace(/^```(?:html)?\n?/, '').replace(/\n?```$/, '').trim();
     const claudePayload = `MOMENT: ${moment}\n\nJSON INVIATO A CLAUDE:\n${JSON.stringify(jsonData, null, 2)}`;
     return { html, claudePayload };
   } catch (err) {
@@ -1013,6 +1019,7 @@ async function triggerRender(html, projectName, callbackUrl, postText, promptPer
       }
     })
   });
+  if (res.status !== 204) console.error(`[triggerRender] GitHub Actions status: ${res.status} per ${projectName}`);
   return res.status === 204;
 }
 
@@ -1044,8 +1051,7 @@ async function handleMoment(ctx, moment) {
     const { html, claudePayload } = await generateHTML(jsonData, moment);
 
     await ctx.reply('🎬 Avviando render...');
-    const base = RAILWAY_PUBLIC_URL || '';
-    const callbackUrl = base ? `${base.startsWith('https') ? '' : 'https://'}${base}/callback` : '';
+    const callbackUrl = buildRailwayUrl('/callback');
 
     const triggered = await triggerRender(html, projectName, callbackUrl, postText, promptUsed, claudePayload);
 
@@ -1218,31 +1224,37 @@ async function handleBatchStop(ctx) {
 // ── Metricool Bridge: Dropbox helpers ────────────────────
 
 let _dbxToken = { value: null, expiry: 0 };
+let _dbxTokenRefreshPromise = null;
 
 async function getDropboxAccessToken() {
   if (_dbxToken.value && Date.now() < _dbxToken.expiry) return _dbxToken.value;
-  const maxAttempts = 3;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: process.env.DBX_REFRESH_TOKEN,
-          client_id: process.env.DBX_APP_KEY,
-          client_secret: process.env.DBX_APP_SECRET
-        })
-      });
-      const data = await res.json();
-      if (!data.access_token) throw new Error('Dropbox token refresh failed: ' + JSON.stringify(data));
-      _dbxToken = { value: data.access_token, expiry: Date.now() + 55 * 60 * 1000 };
-      return data.access_token;
-    } catch (e) {
-      if (attempt === maxAttempts) throw e;
-      await new Promise(r => setTimeout(r, 2000 * attempt));
+  // Evita doppio refresh concorrente: se c'è già un refresh in corso, aspetta quello
+  if (_dbxTokenRefreshPromise) return _dbxTokenRefreshPromise;
+  _dbxTokenRefreshPromise = (async () => {
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            grant_type: 'refresh_token',
+            refresh_token: process.env.DBX_REFRESH_TOKEN,
+            client_id: process.env.DBX_APP_KEY,
+            client_secret: process.env.DBX_APP_SECRET
+          })
+        });
+        const data = await res.json();
+        if (!data.access_token) throw new Error('Dropbox token refresh failed: ' + JSON.stringify(data));
+        _dbxToken = { value: data.access_token, expiry: Date.now() + 55 * 60 * 1000 };
+        return data.access_token;
+      } catch (e) {
+        if (attempt === maxAttempts) throw e;
+        await new Promise(r => setTimeout(r, 2000 * attempt));
+      }
     }
-  }
+  })().finally(() => { _dbxTokenRefreshPromise = null; });
+  return _dbxTokenRefreshPromise;
 }
 
 async function readCaptionFromDropbox(projectName) {
@@ -1469,29 +1481,25 @@ bot.command('group_hl',  (ctx) => handleGroupHl(ctx));
 bot.command('batch',      (ctx) => handleBatch(ctx));
 bot.command('batchstop',  (ctx) => handleBatchStop(ctx));
 
-// ── Server / webhook ──────────────────────────────────────
-if (RAILWAY_PUBLIC_URL) {
-  app.use(bot.webhookCallback('/webhook'));
-  app.listen(PORT, async () => {
-    console.log(`Server on port ${PORT}`);
-    const webhookUrl = `${RAILWAY_PUBLIC_URL.startsWith('https') ? '' : 'https://'}${RAILWAY_PUBLIC_URL}/webhook`;
-    await bot.telegram.setWebhook(webhookUrl);
-    console.log(`Webhook: ${webhookUrl}`);
-  });
+// ── Server / webhook (solo quando eseguito direttamente) ──────────────────────
+// Quando bot.js viene richiesto come modulo (es. da test-live-real.js),
+// il blocco di startup NON gira: no server, no polling, no signal handlers.
+if (require.main === module) {
+  if (RAILWAY_PUBLIC_URL) {
+    app.use(bot.webhookCallback('/webhook'));
+    app.listen(PORT, async () => {
+      console.log(`Server on port ${PORT}`);
+      const webhookUrl = buildRailwayUrl('/webhook');
+      await bot.telegram.setWebhook(webhookUrl);
+      console.log(`Webhook: ${webhookUrl}`);
+    });
+  } else {
+    app.listen(PORT, () => console.log(`Server on port ${PORT}`));
+    bot.launch({ dropPendingUpdates: true });
+  }
+  console.log('PitchPulse Bot avviato');
+  process.once('SIGINT',  () => bot.stop('SIGINT').finally(() => process.exit(0)));
+  process.once('SIGTERM', () => bot.stop('SIGTERM').finally(() => process.exit(0)));
 } else {
-  app.listen(PORT, () => console.log(`Server on port ${PORT}`));
-  bot.launch({ dropPendingUpdates: true });
-}
-
-console.log('PitchPulse Bot avviato');
-process.once('SIGINT',  () => bot.stop('SIGINT').finally(() => process.exit(0)));
-process.once('SIGTERM', () => bot.stop('SIGTERM').finally(() => process.exit(0)));
-
-// ── Export condizionale per testing ───────────────────────
-// Se questo file viene RICHIESTO da un altro script (es. test-live-real.js)
-// invece di essere lanciato direttamente (node bot.js), esponiamo le funzioni
-// pure di costruzione prompt/dati senza interferire con l'avvio reale del bot
-// su Railway, che continua a partire normalmente con `node bot.js`.
-if (require.main !== module) {
   module.exports = { getMatchData, getCuriosityData, getHighlightsData, getGroupHlData, generateHTML };
 }

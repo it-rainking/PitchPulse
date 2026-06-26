@@ -282,9 +282,10 @@ jobs:
         if: ${{ github.event.inputs.callback_url != '' }}
         run: |
           PROJECT="${{ github.event.inputs.project }}"
+          PAYLOAD=$(jq -n --arg p "$PROJECT" '{status:"ok",project:$p,dropbox:("/"+$p+"/")}')
           curl -X POST "${{ github.event.inputs.callback_url }}" \
             -H "Content-Type: application/json" \
-            -d "{\"status\":\"ok\",\"project\":\"${PROJECT}\",\"dropbox\":\"/${PROJECT}/\"}"
+            -d "$PAYLOAD"
 
       # ── 11. Notifica errore su Telegram ───────────────────
       # failure() || cancelled() copre sia errori normali sia timeout (job cancelled)

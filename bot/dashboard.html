@@ -356,38 +356,39 @@ function renderTable(data) {
 
   const rows = data.map(entry => {
     const { moment, ts } = parseProject(entry.project);
-    const isSelected = document.getElementById(`chk-${entry.project}`)?.checked || false;
+    const eid = escapeHtml(entry.project);
+    const isSelected = document.getElementById(`chk-${eid}`)?.checked || false;
     const isNew = (Date.now() - new Date(entry.timestamp).getTime()) < 300000;
 
-    const dateVal = document.getElementById(`date-${entry.project}`)?.value || today;
-    const timeVal = document.getElementById(`time-${entry.project}`)?.value || defaultTime;
-    const igChecked = document.getElementById(`ig-${entry.project}`)?.checked !== false;
-    const ttChecked = document.getElementById(`tt-${entry.project}`)?.checked !== false;
+    const dateVal = document.getElementById(`date-${eid}`)?.value || today;
+    const timeVal = document.getElementById(`time-${eid}`)?.value || defaultTime;
+    const igChecked = document.getElementById(`ig-${eid}`)?.checked !== false;
+    const ttChecked = document.getElementById(`tt-${eid}`)?.checked !== false;
 
-    return `<tr id="row-${entry.project}" class="${isSelected ? 'selected' : ''}">
+    return `<tr id="row-${eid}" class="${isSelected ? 'selected' : ''}">
       <td class="check-cell">
-        <input type="checkbox" id="chk-${entry.project}" data-project="${escapeHtml(entry.project)}" ${isSelected ? 'checked' : ''} onchange="onRowSelect(this)">
+        <input type="checkbox" id="chk-${eid}" data-project="${eid}" ${isSelected ? 'checked' : ''} onchange="onRowSelect(this)">
       </td>
       <td>
-        <div class="project-name">${entry.project}</div>
-        <div class="project-time">${ts}</div>
+        <div class="project-name">${eid}</div>
+        <div class="project-time">${escapeHtml(ts)}</div>
       </td>
-      <td><span class="moment-badge ${momentClass(moment)}">${moment}</span></td>
+      <td><span class="moment-badge ${momentClass(moment)}">${escapeHtml(moment)}</span></td>
       <td><div class="caption-preview">${formatCaptionPreview(entry.caption, entry.project, isNew)}</div></td>
       <td>${linkStatusHTML(entry)}</td>
       <td class="platforms">
         <label class="platform-toggle">
-          <input type="checkbox" id="ig-${entry.project}" ${igChecked ? 'checked' : ''}>
+          <input type="checkbox" id="ig-${eid}" ${igChecked ? 'checked' : ''}>
           <span class="platform-chip ig">IG</span>
         </label>
         <label class="platform-toggle">
-          <input type="checkbox" id="tt-${entry.project}" ${ttChecked ? 'checked' : ''}>
+          <input type="checkbox" id="tt-${eid}" ${ttChecked ? 'checked' : ''}>
           <span class="platform-chip tt">TT</span>
         </label>
       </td>
       <td class="schedule-inputs">
-        <input type="date" id="date-${entry.project}" value="${dateVal}">
-        <input type="time" id="time-${entry.project}" value="${timeVal}">
+        <input type="date" id="date-${eid}" value="${dateVal}">
+        <input type="time" id="time-${eid}" value="${timeVal}">
       </td>
     </tr>`;
   }).join('');
