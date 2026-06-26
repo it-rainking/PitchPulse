@@ -311,13 +311,18 @@ function parseProject(name) {
 }
 
 function momentClass(m) {
-  return 'moment-' + (m || 'prematch').replace('_', '_');
+  return 'moment-' + (m || 'prematch');
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function formatCaptionPreview(text) {
   if (!text) return '<span class="loading">caption in caricamento...</span>';
   const first = text.split('\n').filter(l => l.trim()).slice(0, 2).join(' · ');
-  return first.length > 90 ? first.slice(0, 90) + '…' : first;
+  const truncated = first.length > 90 ? first.slice(0, 90) + '…' : first;
+  return escapeHtml(truncated);
 }
 
 function linkStatusHTML(entry) {

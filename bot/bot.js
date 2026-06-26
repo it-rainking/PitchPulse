@@ -1242,6 +1242,12 @@ async function readCaptionFromDropbox(projectName) {
   }
 }
 
+function toDirectDownloadUrl(url) {
+  const u = new URL(url);
+  u.searchParams.set('dl', '1');
+  return u.toString();
+}
+
 async function getDropboxShareLink(projectName) {
   try {
     const token = await getDropboxAccessToken();
@@ -1255,7 +1261,7 @@ async function getDropboxShareLink(projectName) {
     });
     const listData = await listRes.json();
     if (listData.links && listData.links.length > 0) {
-      return listData.links[0].url.replace(/[?&]dl=0/, '').replace(/\?$/, '') + '?dl=1';
+      return toDirectDownloadUrl(listData.links[0].url);
     }
 
     // Create new public shared link
@@ -1265,12 +1271,12 @@ async function getDropboxShareLink(projectName) {
       body: JSON.stringify({ path: filePath, settings: { requested_visibility: { '.tag': 'public' } } })
     });
     const createData = await createRes.json();
-    if (createData.url) return createData.url.replace(/[?&]dl=0/, '').replace(/\?$/, '') + '?dl=1';
+    if (createData.url) return toDirectDownloadUrl(createData.url);
 
-    // Handle "link already exists" race condition
+    // Handle "link already exists" race condition — Dropbox v2 nests metadata under the error tag key
     if (createData.error && createData.error['.tag'] === 'shared_link_already_exists') {
-      const meta = createData.error.metadata;
-      if (meta && meta.url) return meta.url.replace(/[?&]dl=0/, '').replace(/\?$/, '') + '?dl=1';
+      const meta = createData.error.shared_link_already_exists?.metadata;
+      if (meta && meta.url) return toDirectDownloadUrl(meta.url);
     }
     return null;
   } catch (e) {
