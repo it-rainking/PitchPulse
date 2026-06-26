@@ -1396,21 +1396,34 @@ function generateMetricoolCSV(items) {
 
 // ── Callback render completato ────────────────────────────
 app.post('/callback', async (req, res) => {
-  const { status, project, dropbox } = req.body;
+  const { status, project, dropbox, post_text, share_link } = req.body;
   try {
     if (status === 'ok') {
       await bot.telegram.sendMessage(process.env.TELEGRAM_CHAT_ID,
         `✅ *Render completato!*\n📁 \`${project}\`\n☁️ \`${dropbox}\``,
         { parse_mode: 'Markdown' });
 
-      const entry = { project, dropbox, caption: '', shareLink: null, timestamp: new Date().toISOString() };
+      // Decode caption from callback payload (base64 encoded post_text from GH Actions)
+      const caption = post_text ? Buffer.from(post_text, 'base64').toString('utf8') : '';
+      const shareLink = share_link || null;
+
+      const entry = { project, dropbox, caption, shareLink, timestamp: new Date().toISOString() };
       outputStore.set(project, entry);
       saveStore();
 
-      // Enrich async (non-blocking): read caption + generate share link
-      Promise.all([readCaptionFromDropbox(project), getDropboxShareLink(project)])
-        .then(([caption, shareLink]) => { entry.caption = caption; entry.shareLink = shareLink; saveStore(); })
-        .catch(e => console.error('[callback] enrich error:', e.message));
+      // Fallback: enrich from Dropbox if either field is still missing
+      if (!caption || !shareLink) {
+        const tasks = [];
+        if (!caption) tasks.push(
+          readCaptionFromDropbox(project)
+            .then(c => { if (c) { entry.caption = c; saveStore(); } })
+        );
+        if (!shareLink) tasks.push(
+          getDropboxShareLink(project)
+            .then(l => { if (l) { entry.shareLink = l; saveStore(); } })
+        );
+        Promise.all(tasks).catch(e => console.error('[callback] enrich fallback error:', e.message));
+      }
 
     } else {
       await bot.telegram.sendMessage(process.env.TELEGRAM_CHAT_ID,

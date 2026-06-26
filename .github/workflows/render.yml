@@ -277,17 +277,55 @@ jobs:
 
           echo "Upload completato in: $DBX_FOLDER"
 
-      # ── 10. Notifica Railway (callback) ───────────────────
+      # ── 10. Genera Dropbox share link ────────────────────────
+      - name: Generate Dropbox share link
+        env:
+          DBX_ACCESS_TOKEN: ${{ env.DBX_ACCESS_TOKEN }}
+        run: |
+          PROJECT="${{ github.event.inputs.project }}"
+          FILE_PATH="/$PROJECT/$PROJECT.mp4"
+
+          # Check existing links first
+          LIST_RESP=$(curl -s -X POST 'https://api.dropboxapi.com/2/sharing/list_shared_links' \
+            -H "Authorization: Bearer $DBX_ACCESS_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d "{\"path\":\"$FILE_PATH\",\"direct_only\":true}")
+          URL=$(echo "$LIST_RESP" | jq -r '.links[0].url // empty')
+
+          if [ -z "$URL" ]; then
+            CREATE_RESP=$(curl -s -X POST 'https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings' \
+              -H "Authorization: Bearer $DBX_ACCESS_TOKEN" \
+              -H 'Content-Type: application/json' \
+              -d "{\"path\":\"$FILE_PATH\"}")
+            URL=$(echo "$CREATE_RESP" | jq -r '.url // .error.shared_link_already_exists.metadata.url // empty')
+          fi
+
+          if [ -n "$URL" ]; then
+            DIRECT_URL="${URL/\?dl=0/?dl=1}"
+            echo "DBX_SHARE_URL=$DIRECT_URL" >> $GITHUB_ENV
+            echo "Share link generato: $DIRECT_URL"
+          else
+            echo "DBX_SHARE_URL=" >> $GITHUB_ENV
+            echo "WARN: impossibile generare share link"
+          fi
+
+      # ── 11. Notifica Railway (callback) ───────────────────
       - name: Notify Railway
         if: ${{ github.event.inputs.callback_url != '' }}
         run: |
           PROJECT="${{ github.event.inputs.project }}"
-          PAYLOAD=$(jq -n --arg p "$PROJECT" '{status:"ok",project:$p,dropbox:("/"+$p+"/")}')
+          POST_TEXT="${{ github.event.inputs.post_text }}"
+          SHARE_URL="${DBX_SHARE_URL:-}"
+          PAYLOAD=$(jq -n \
+            --arg p  "$PROJECT" \
+            --arg pt "$POST_TEXT" \
+            --arg su "$SHARE_URL" \
+            '{status:"ok",project:$p,dropbox:("/"+$p+"/"),post_text:$pt,share_link:$su}')
           curl -X POST "${{ github.event.inputs.callback_url }}" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD"
 
-      # ── 11. Notifica errore su Telegram ───────────────────
+      # ── 12. Notifica errore su Telegram ───────────────────
       # failure() || cancelled() copre sia errori normali sia timeout (job cancelled)
       - name: Notify error on Telegram
         if: failure() || cancelled()
