@@ -120,7 +120,7 @@ jobs:
         if: steps.cache-assets.outputs.cache-hit != 'true'
         run: |
           BASE="https://pub-3014d0a8aa084b139613f942b5551b02.r2.dev"
-
+                
           mkdir -p audio fonts videos
 
           echo "=== AUDIO ==="
@@ -142,6 +142,12 @@ jobs:
           curl -fSL "$BASE/videos/Goal-2.mp4" -o videos/Goal-2.mp4 && echo "OK Goal-2.mp4" || echo "MISS Goal-2.mp4"
           curl -fSL "$BASE/videos/Goal-3.mp4" -o videos/Goal-3.mp4 && echo "OK Goal-3.mp4" || echo "MISS Goal-3.mp4"
           curl -fSL "$BASE/videos/Goal-4.mp4" -o videos/Goal-4.mp4 && echo "OK Goal-4.mp4" || echo "MISS Goal-4.mp4"
+          curl -fSL "$BASE/videos/17744356-357E-4282-9F80-38FF0ACD1CAE.MP4" -o videos/17744356-357E-4282-9F80-38FF0ACD1CAE.MP4 && echo "OK 17744356-357E-4282-9F80-38FF0ACD1CAE.MP4" || echo "MISS 17744356-357E-4282-9F80-38FF0ACD1CAE.MP4"
+          curl -fSL "$BASE/videos/49BEAB38-39A9-48A5-B472-8DE67B67325E.MP4" -o videos/49BEAB38-39A9-48A5-B472-8DE67B67325E.MP4 && echo "OK 49BEAB38-39A9-48A5-B472-8DE67B67325E.MP4" || echo "MISS 49BEAB38-39A9-48A5-B472-8DE67B67325E.MP4"
+          curl -fSL "$BASE/videos/85162EB6-EDDF-4F59-8128-A0B15E42A85D.MP4" -o videos/85162EB6-EDDF-4F59-8128-A0B15E42A85D.MP4 && echo "OK 85162EB6-EDDF-4F59-8128-A0B15E42A85D.MP4" || echo "MISS 85162EB6-EDDF-4F59-8128-A0B15E42A85D.MP4"
+          curl -fSL "$BASE/videos/8D4C0E64-5068-4F4C-AF77-CC4FA2918B7C.MP4" -o videos/8D4C0E64-5068-4F4C-AF77-CC4FA2918B7C.MP4 && echo "OK 8D4C0E64-5068-4F4C-AF77-CC4FA2918B7C.MP4" || echo "MISS 8D4C0E64-5068-4F4C-AF77-CC4FA2918B7C.MP4"
+          curl -fSL "$BASE/videos/C896A2B6-58B5-492C-A21D-72E943058625.MP4" -o videos/C896A2B6-58B5-492C-A21D-72E943058625.MP4 && echo "OK C896A2B6-58B5-492C-A21D-72E943058625.MP4" || echo "MISS C896A2B6-58B5-492C-A21D-72E943058625.MP4"
+          curl -fSL "$BASE/videos/EEE63D49-A15A-4E4A-963A-4F702B733D14.MP4" -o videos/EEE63D49-A15A-4E4A-963A-4F702B733D14.MP4 && echo "OK EEE63D49-A15A-4E4A-963A-4F702B733D14.MP4" || echo "MISS EEE63D49-A15A-4E4A-963A-4F702B733D14.MP4"
 
           echo "=== TOTALE ==="
           ls -lh audio/ fonts/ videos/
