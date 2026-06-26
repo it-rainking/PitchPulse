@@ -1198,7 +1198,10 @@ async function handleBatchStop(ctx) {
 
 // ── Metricool Bridge: Dropbox helpers ────────────────────
 
+let _dbxToken = { value: null, expiry: 0 };
+
 async function getDropboxAccessToken() {
+  if (_dbxToken.value && Date.now() < _dbxToken.expiry) return _dbxToken.value;
   const maxAttempts = 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -1214,6 +1217,7 @@ async function getDropboxAccessToken() {
       });
       const data = await res.json();
       if (!data.access_token) throw new Error('Dropbox token refresh failed: ' + JSON.stringify(data));
+      _dbxToken = { value: data.access_token, expiry: Date.now() + 55 * 60 * 1000 };
       return data.access_token;
     } catch (e) {
       if (attempt === maxAttempts) throw e;
@@ -1242,6 +1246,12 @@ async function readCaptionFromDropbox(projectName) {
   }
 }
 
+function toDirectDownloadUrl(url) {
+  const u = new URL(url);
+  u.searchParams.set('dl', '1');
+  return u.toString();
+}
+
 async function getDropboxShareLink(projectName) {
   try {
     const token = await getDropboxAccessToken();
@@ -1255,7 +1265,7 @@ async function getDropboxShareLink(projectName) {
     });
     const listData = await listRes.json();
     if (listData.links && listData.links.length > 0) {
-      return listData.links[0].url.replace(/[?&]dl=0/, '').replace(/\?$/, '') + '?dl=1';
+      return toDirectDownloadUrl(listData.links[0].url);
     }
 
     // Create new public shared link
@@ -1265,12 +1275,22 @@ async function getDropboxShareLink(projectName) {
       body: JSON.stringify({ path: filePath, settings: { requested_visibility: { '.tag': 'public' } } })
     });
     const createData = await createRes.json();
-    if (createData.url) return createData.url.replace(/[?&]dl=0/, '').replace(/\?$/, '') + '?dl=1';
+    if (createData.url) return toDirectDownloadUrl(createData.url);
 
-    // Handle "link already exists" race condition
+    // Handle "link already exists" race condition — two sub-types:
+    // "metadata" includes the URL in the error body; "default" does not.
+    // In both cases the safe path is to re-query list_shared_links.
     if (createData.error && createData.error['.tag'] === 'shared_link_already_exists') {
-      const meta = createData.error.metadata;
-      if (meta && meta.url) return meta.url.replace(/[?&]dl=0/, '').replace(/\?$/, '') + '?dl=1';
+      const meta = createData.error.shared_link_already_exists?.metadata;
+      if (meta && meta.url) return toDirectDownloadUrl(meta.url);
+      // "default" sub-type: re-fetch the existing link
+      const retryRes = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath, direct_only: true })
+      });
+      const retryData = await retryRes.json();
+      if (retryData.links && retryData.links.length > 0) return toDirectDownloadUrl(retryData.links[0].url);
     }
     return null;
   } catch (e) {
@@ -1318,7 +1338,7 @@ function generateMetricoolCSV(items) {
     ].join(',');
   }).filter(Boolean);
 
-  return [headers.join(','), ...rows].join('\n');
+  return [headers.join(','), ...rows].join('\r\n');
 }
 
 // ── Callback render completato ────────────────────────────
