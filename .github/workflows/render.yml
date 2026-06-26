@@ -205,36 +205,41 @@ jobs:
             --output "${PROJECT}.mp4" \
             --format mp4
 
-      # ── 9. Upload su Dropbox (tutti i file nella stessa cartella) ──
-      - name: Upload to Dropbox
+      # ── 9a. Ottieni access token Dropbox via curl ─────────────
+      - name: Get Dropbox access token
         env:
           DBX_APP_KEY: ${{ secrets.DBX_APP_KEY }}
           DBX_APP_SECRET: ${{ secrets.DBX_APP_SECRET }}
           DBX_REFRESH_TOKEN: ${{ secrets.DBX_REFRESH_TOKEN }}
         run: |
+          RESPONSE=$(curl -s --retry 3 --retry-delay 2 -X POST \
+            "https://api.dropboxapi.com/oauth2/token" \
+            --data-urlencode "grant_type=refresh_token" \
+            --data-urlencode "refresh_token=$DBX_REFRESH_TOKEN" \
+            --data-urlencode "client_id=$DBX_APP_KEY" \
+            --data-urlencode "client_secret=$DBX_APP_SECRET")
+          echo "Dropbox token response: $(echo "$RESPONSE" | jq -r 'del(.access_token) | del(.refresh_token)')"
+          ACCESS_TOKEN=$(echo "$RESPONSE" | jq -r '.access_token // empty')
+          if [ -z "$ACCESS_TOKEN" ]; then
+            echo "ERRORE: impossibile ottenere access token"
+            echo "Risposta completa (senza token): $(echo "$RESPONSE" | jq -r 'del(.access_token) | del(.refresh_token)')"
+            exit 1
+          fi
+          echo "DBX_ACCESS_TOKEN=$ACCESS_TOKEN" >> $GITHUB_ENV
+          echo "Access token ottenuto con successo"
+
+      # ── 9b. Upload su Dropbox (tutti i file nella stessa cartella) ──
+      - name: Upload to Dropbox
+        env:
+          DBX_ACCESS_TOKEN: ${{ env.DBX_ACCESS_TOKEN }}
+        run: |
           node -e "
           const fs = require('fs');
-          const { Dropbox, DropboxAuth } = require('dropbox');
+          const { Dropbox } = require('dropbox');
           const fetch = require('node-fetch');
 
-          async function withRetry(fn, maxAttempts = 3, baseDelay = 2000) {
-            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-              try { return await fn(); } catch (e) {
-                if (attempt === maxAttempts) throw e;
-                await new Promise(r => setTimeout(r, baseDelay * attempt));
-              }
-            }
-          }
-
           (async () => {
-            const auth = new DropboxAuth({
-              clientId: process.env.DBX_APP_KEY,
-              clientSecret: process.env.DBX_APP_SECRET,
-              refreshToken: process.env.DBX_REFRESH_TOKEN,
-              fetch
-            });
-            await withRetry(() => auth.refreshAccessToken());
-            const dbx = new Dropbox({ auth, fetch });
+            const dbx = new Dropbox({ accessToken: process.env.DBX_ACCESS_TOKEN, fetch });
 
             const project = '${{ github.event.inputs.project }}';
             const dbxFolder = '/' + project;
