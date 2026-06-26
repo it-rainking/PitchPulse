@@ -218,77 +218,51 @@ jobs:
             --data-urlencode "refresh_token=$DBX_REFRESH_TOKEN" \
             --data-urlencode "client_id=$DBX_APP_KEY" \
             --data-urlencode "client_secret=$DBX_APP_SECRET")
-          echo "Dropbox token response: $(echo "$RESPONSE" | jq -r 'del(.access_token) | del(.refresh_token)')"
           ACCESS_TOKEN=$(echo "$RESPONSE" | jq -r '.access_token // empty')
           if [ -z "$ACCESS_TOKEN" ]; then
             echo "ERRORE: impossibile ottenere access token"
-            echo "Risposta completa (senza token): $(echo "$RESPONSE" | jq -r 'del(.access_token) | del(.refresh_token)')"
+            echo "Risposta Dropbox: $(echo "$RESPONSE" | jq -r 'del(.access_token) | del(.refresh_token)')"
             exit 1
           fi
+          echo "::add-mask::$ACCESS_TOKEN"
           echo "DBX_ACCESS_TOKEN=$ACCESS_TOKEN" >> $GITHUB_ENV
           echo "Access token ottenuto con successo"
 
-      # ── 9b. Upload su Dropbox (tutti i file nella stessa cartella) ──
+      # ── 9b. Upload su Dropbox via curl ────────────────────────
       - name: Upload to Dropbox
         env:
           DBX_ACCESS_TOKEN: ${{ env.DBX_ACCESS_TOKEN }}
         run: |
-          node -e "
-          const fs = require('fs');
-          const { Dropbox } = require('dropbox');
-          const fetch = require('node-fetch');
+          PROJECT="${{ github.event.inputs.project }}"
+          DBX_FOLDER="/$PROJECT"
 
-          (async () => {
-            const dbx = new Dropbox({ accessToken: process.env.DBX_ACCESS_TOKEN, fetch });
+          upload_file() {
+            local LOCAL="$1"
+            local REMOTE="$2"
+            if [ ! -f "$LOCAL" ]; then
+              echo "SKIP (non trovato): $LOCAL"
+              return 0
+            fi
+            RESULT=$(curl -s --retry 3 --retry-delay 2 -X POST \
+              "https://content.dropboxapi.com/2/files/upload" \
+              -H "Authorization: Bearer $DBX_ACCESS_TOKEN" \
+              -H "Dropbox-API-Arg: {\"path\":\"$REMOTE\",\"mode\":{\".tag\":\"overwrite\"},\"autorename\":false}" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$LOCAL")
+            if echo "$RESULT" | jq -e '.id' > /dev/null 2>&1; then
+              echo "OK: $REMOTE"
+            else
+              echo "ERRORE upload $REMOTE: $(echo "$RESULT" | jq -r '.error_summary // .')"
+              exit 1
+            fi
+          }
 
-            const project = '${{ github.event.inputs.project }}';
-            const dbxFolder = '/' + project;
+          upload_file "$PROJECT/$PROJECT.mp4"          "$DBX_FOLDER/$PROJECT.mp4"
+          upload_file "$PROJECT/post.txt"              "$DBX_FOLDER/post.txt"
+          upload_file "$PROJECT/prompt-perplexity.txt" "$DBX_FOLDER/prompt-perplexity.txt"
+          upload_file "$PROJECT/prompt-claude.txt"     "$DBX_FOLDER/prompt-claude.txt"
 
-            // Funzione helper upload
-            async function uploadFile(localPath, dbxPath) {
-              if (!fs.existsSync(localPath)) {
-                console.log('SKIP (non trovato):', localPath);
-                return null;
-              }
-              const content = fs.readFileSync(localPath);
-              await dbx.filesUpload({
-                path: dbxPath,
-                contents: content,
-                mode: { '.tag': 'overwrite' },
-                autorename: false
-              });
-              console.log('OK:', dbxPath);
-              return dbxPath;
-            }
-
-            // 1. MP4 — nome senza pitchpulse-
-            const mp4Path = await uploadFile(
-              project + '/' + project + '.mp4',
-              dbxFolder + '/' + project + '.mp4'
-            );
-
-            // 2. Post copy text
-            await uploadFile(
-              project + '/post.txt',
-              dbxFolder + '/post.txt'
-            );
-
-            // 3. Prompt Perplexity
-            await uploadFile(
-              project + '/prompt-perplexity.txt',
-              dbxFolder + '/prompt-perplexity.txt'
-            );
-
-            // 4. Prompt Claude
-            await uploadFile(
-              project + '/prompt-claude.txt',
-              dbxFolder + '/prompt-claude.txt'
-            );
-
-            console.log('Upload completato in:', dbxFolder);
-
-          })().catch(e => { console.error(e); process.exit(1); });
-          "
+          echo "Upload completato in: $DBX_FOLDER"
 
       # ── 10. Notifica Railway (callback) ───────────────────
       - name: Notify Railway
