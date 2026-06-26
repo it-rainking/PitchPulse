@@ -40,6 +40,28 @@ if (!mode || !input) {
   process.exit(1);
 }
 
+function repairAndParseJSON(raw) {
+  try { return JSON.parse(raw); } catch (_) {}
+  const noTrailing = raw.replace(/,(\s*[}\]])/g, '$1');
+  try { return JSON.parse(noTrailing); } catch (_) {}
+  let result = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < noTrailing.length; i++) {
+    const c = noTrailing[i];
+    if (escaped) { result += c; escaped = false; continue; }
+    if (c === '\\') { result += c; escaped = true; continue; }
+    if (c === '"') { result += c; inString = !inString; continue; }
+    if (inString) {
+      if (c === '\n') { result += '\\n'; continue; }
+      if (c === '\r') { result += '\\r'; continue; }
+      if (c === '\t') { result += '\\t'; continue; }
+    }
+    result += c;
+  }
+  return JSON.parse(result);
+}
+
 async function callPerplexity(prompt) {
   const res = await fetch('https://api.perplexity.ai/chat/completions', {
     method: 'POST',
@@ -65,7 +87,12 @@ async function callPerplexity(prompt) {
     console.error('Nessun JSON trovato nella risposta:', text.slice(0, 300));
     process.exit(1);
   }
-  return JSON.parse(jsonMatch[0]);
+  try {
+    return repairAndParseJSON(jsonMatch[0]);
+  } catch (e) {
+    console.error('JSON non parsabile anche dopo repair:', jsonMatch[0].substring(0, 500));
+    process.exit(1);
+  }
 }
 
 (async () => {
