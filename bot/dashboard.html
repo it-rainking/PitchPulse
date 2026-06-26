@@ -71,7 +71,7 @@
     .refresh-btn:hover { border-color: var(--cyan); color: var(--cyan); }
     #auto-refresh-label { color: var(--muted); font-size: 12px; }
 
-    main { padding: 24px 32px; max-width: 1200px; }
+    main { padding: 24px 32px; max-width: 1200px; margin: 0 auto; }
 
     .toolbar {
       display: flex;
@@ -186,7 +186,7 @@
       overflow: hidden;
       line-height: 1.4;
     }
-    .caption-preview.loading { color: var(--border); font-style: italic; }
+    .caption-preview .loading { color: var(--border); font-style: italic; }
 
     .link-status {
       display: flex;
@@ -298,15 +298,13 @@
 
 <script>
 let outputs = [];
-let allSelected = false;
 
 function parseProject(name) {
   const parts = name.split('-');
-  const moment = parts[0] === 'group' ? 'group_hl' : parts[0];
-  const teams = parts.slice(1, -1).join('-') || '';
+  const moment = parts[0];
   const tsRaw = parts[parts.length - 1];
   const ts = /^\d+$/.test(tsRaw) ? new Date(parseInt(tsRaw)).toLocaleString('it-IT') : tsRaw;
-  return { moment, teams, ts };
+  return { moment, ts };
 }
 
 function momentClass(m) {
@@ -314,7 +312,7 @@ function momentClass(m) {
 }
 
 function escapeHtml(str) {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function formatCaptionPreview(text) {
@@ -352,7 +350,7 @@ function renderTable(data) {
   const defaultTime = '10:00';
 
   const rows = data.map(entry => {
-    const { moment, teams, ts } = parseProject(entry.project);
+    const { moment, ts } = parseProject(entry.project);
     const isSelected = document.getElementById(`chk-${entry.project}`)?.checked || false;
 
     const dateVal = document.getElementById(`date-${entry.project}`)?.value || today;
@@ -362,7 +360,7 @@ function renderTable(data) {
 
     return `<tr id="row-${entry.project}" class="${isSelected ? 'selected' : ''}">
       <td class="check-cell">
-        <input type="checkbox" id="chk-${entry.project}" ${isSelected ? 'checked' : ''} onchange="onRowSelect(this, '${entry.project}')">
+        <input type="checkbox" id="chk-${entry.project}" data-project="${escapeHtml(entry.project)}" ${isSelected ? 'checked' : ''} onchange="onRowSelect(this)">
       </td>
       <td>
         <div class="project-name">${entry.project}</div>
@@ -406,7 +404,8 @@ function renderTable(data) {
   updateExportBtn();
 }
 
-function onRowSelect(chk, project) {
+function onRowSelect(chk) {
+  const project = chk.dataset.project;
   const row = document.getElementById(`row-${project}`);
   if (chk.checked) row.classList.add('selected');
   else row.classList.remove('selected');
@@ -414,13 +413,14 @@ function onRowSelect(chk, project) {
 }
 
 function toggleSelectAll() {
-  allSelected = !allSelected;
+  const allChecked = outputs.length > 0 && outputs.every(e => document.getElementById(`chk-${e.project}`)?.checked);
+  const newState = !allChecked;
   outputs.forEach(entry => {
     const chk = document.getElementById(`chk-${entry.project}`);
     const row = document.getElementById(`row-${entry.project}`);
-    if (chk) { chk.checked = allSelected; row?.classList.toggle('selected', allSelected); }
+    if (chk) { chk.checked = newState; row?.classList.toggle('selected', newState); }
   });
-  document.getElementById('select-all-btn').textContent = allSelected ? 'Deseleziona tutti' : 'Seleziona tutti';
+  document.getElementById('select-all-btn').textContent = newState ? 'Deseleziona tutti' : 'Seleziona tutti';
   updateExportBtn();
 }
 
@@ -435,7 +435,9 @@ function updateExportBtn() {
 async function loadOutputs() {
   try {
     const res = await fetch('/api/outputs');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    if (!Array.isArray(data)) throw new Error('Risposta non valida dal server');
     outputs = data;
     renderTable(data);
   } catch (e) {
@@ -447,6 +449,7 @@ async function refreshLink(projectId) {
   showToast('Generazione link in corso...');
   try {
     const res = await fetch(`/api/outputs/${encodeURIComponent(projectId)}/refresh-link`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const entry = outputs.find(o => o.project === projectId);
     if (entry && data.shareLink) {
@@ -496,7 +499,9 @@ async function exportCSV() {
     const a = document.createElement('a');
     a.href = url;
     a.download = `pitchpulse-metricool-${Date.now()}.csv`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
     showToast(`CSV esportato con ${items.length} post!`);
   } catch (e) {
@@ -516,9 +521,13 @@ function showToast(msg, type = 'ok') {
 setInterval(async () => {
   try {
     const res = await fetch('/api/outputs');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    if (!Array.isArray(data)) throw new Error('Risposta non valida');
     outputs = data;
     renderTable(data);
+    const now = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('auto-refresh-label').textContent = `Aggiornato alle ${now}`;
   } catch (e) {}
 }, 30000);
 
