@@ -730,7 +730,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
     const triggered = await triggerRender(html, projectName, callbackUrl, postText, promptUsed, claudePayload);
 
     if (triggered) {
-      await ctx.reply(`✅ *Render avviato!*\n📁 \`${projectName}\`\nPronto in circa 3 minuti`, { parse_mode: 'Markdown' });
+      await ctx.reply(`✅ *Render avviato!*\n📁 \`${projectName}\``, { parse_mode: 'Markdown' });
     } else {
       await ctx.reply('❌ Errore GitHub Actions');
     }
@@ -921,7 +921,7 @@ ${JSON.stringify(jsonData, null, 2)}`;
     const triggered = await triggerRender(html, projectName, callbackUrl, postText, promptUsed, claudePayload);
 
     if (triggered) {
-      await ctx.reply(`✅ *Render avviato!*\n📁 \`${projectName}\`\nPronto in circa 3 minuti`, { parse_mode: 'Markdown' });
+      await ctx.reply(`✅ *Render avviato!*\n📁 \`${projectName}\``, { parse_mode: 'Markdown' });
     } else {
       await ctx.reply('❌ Errore GitHub Actions');
     }
@@ -1031,7 +1031,7 @@ async function handleMoment(ctx, moment) {
     const triggered = await triggerRender(html, projectName, callbackUrl, postText, promptUsed, claudePayload);
 
     if (triggered) {
-      await ctx.reply(`✅ *Render avviato!*\n📁 \`${projectName}\`\nPronto in circa 3 minuti`, { parse_mode: 'Markdown' });
+      await ctx.reply(`✅ *Render avviato!*\n📁 \`${projectName}\``, { parse_mode: 'Markdown' });
     } else {
       await ctx.reply('❌ Errore GitHub Actions');
     }
@@ -1423,4 +1423,3 @@ process.once('SIGTERM', () => bot.stop('SIGTERM').finally(() => process.exit(0))
 if (require.main !== module) {
   module.exports = { getMatchData, getCuriosityData, getHighlightsData, getGroupHlData, generateHTML };
 }
-
