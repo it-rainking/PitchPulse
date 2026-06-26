@@ -1198,7 +1198,10 @@ async function handleBatchStop(ctx) {
 
 // ── Metricool Bridge: Dropbox helpers ────────────────────
 
+let _dbxToken = { value: null, expiry: 0 };
+
 async function getDropboxAccessToken() {
+  if (_dbxToken.value && Date.now() < _dbxToken.expiry) return _dbxToken.value;
   const maxAttempts = 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -1214,6 +1217,7 @@ async function getDropboxAccessToken() {
       });
       const data = await res.json();
       if (!data.access_token) throw new Error('Dropbox token refresh failed: ' + JSON.stringify(data));
+      _dbxToken = { value: data.access_token, expiry: Date.now() + 55 * 60 * 1000 };
       return data.access_token;
     } catch (e) {
       if (attempt === maxAttempts) throw e;
@@ -1334,7 +1338,7 @@ function generateMetricoolCSV(items) {
     ].join(',');
   }).filter(Boolean);
 
-  return [headers.join(','), ...rows].join('\n');
+  return [headers.join(','), ...rows].join('\r\n');
 }
 
 // ── Callback render completato ────────────────────────────

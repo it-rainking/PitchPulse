@@ -333,7 +333,7 @@ function linkStatusHTML(entry) {
     return `<div class="link-status"><div class="dot dot-wait"></div><span class="link-text">In attesa...</span></div>`;
   }
   return `<div class="link-status"><div class="dot dot-err"></div>
-    <button class="refresh-link-btn" onclick="refreshLink('${entry.project}')">Genera link</button></div>`;
+    <button class="refresh-link-btn" data-id="${escapeHtml(entry.project)}" onclick="refreshLink(this.dataset.id)">Genera link</button></div>`;
 }
 
 function renderTable(data) {
@@ -362,7 +362,7 @@ function renderTable(data) {
 
     return `<tr id="row-${entry.project}" class="${isSelected ? 'selected' : ''}">
       <td class="check-cell">
-        <input type="checkbox" id="chk-${entry.project}" onchange="onRowSelect(this, '${entry.project}')">
+        <input type="checkbox" id="chk-${entry.project}" ${isSelected ? 'checked' : ''} onchange="onRowSelect(this, '${entry.project}')">
       </td>
       <td>
         <div class="project-name">${entry.project}</div>
