@@ -17,9 +17,28 @@ const PORT = process.env.PORT || 3000;
 
 const SYSTEM_PROMPT = fs.readFileSync(path.join(__dirname, 'prompts/system-html-agent.txt'), 'utf8');
 
-// ── Metricool Bridge: store output renders in-memory ──────
+// ── Metricool Bridge: store output renders (persisted to disk) ──
 // Key: projectName, Value: { project, dropbox, caption, shareLink, timestamp }
 const outputStore = new Map();
+const STORE_FILE = path.join(__dirname, 'output-store.json');
+
+function loadStore() {
+  try {
+    if (fs.existsSync(STORE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
+      for (const [k, v] of Object.entries(data)) outputStore.set(k, v);
+      console.log(`[store] caricati ${outputStore.size} output da disco`);
+    }
+  } catch (e) { console.error('[store] load error:', e.message); }
+}
+
+function saveStore() {
+  try {
+    fs.writeFileSync(STORE_FILE, JSON.stringify(Object.fromEntries(outputStore), null, 2), 'utf8');
+  } catch (e) { console.error('[store] save error:', e.message); }
+}
+
+loadStore();
 
 // ── Prompt Perplexity: istruzioni statiche per moment ─────
 // File esterni in prompts/perplexity/ - contengono solo testo
@@ -1292,6 +1311,28 @@ async function getDropboxShareLink(projectName) {
       const retryData = await retryRes.json();
       if (retryData.links && retryData.links.length > 0) return toDirectDownloadUrl(retryData.links[0].url);
     }
+
+    // Fallback: team accounts may reject 'public' visibility — try without visibility restriction
+    if (createData.error) {
+      console.error('[dropbox] shareLink create error (public):', JSON.stringify(createData.error));
+      const fallbackRes = await fetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath })
+      });
+      const fallbackData = await fallbackRes.json();
+      if (fallbackData.url) return toDirectDownloadUrl(fallbackData.url);
+      if (fallbackData.error && fallbackData.error['.tag'] === 'shared_link_already_exists') {
+        const retryRes2 = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: filePath, direct_only: true })
+        });
+        const retryData2 = await retryRes2.json();
+        if (retryData2.links && retryData2.links.length > 0) return toDirectDownloadUrl(retryData2.links[0].url);
+      }
+      console.error('[dropbox] shareLink fallback error:', JSON.stringify(fallbackData.error || fallbackData));
+    }
     return null;
   } catch (e) {
     console.error('[dropbox] shareLink error:', e.message);
@@ -1352,10 +1393,11 @@ app.post('/callback', async (req, res) => {
 
       const entry = { project, dropbox, caption: '', shareLink: null, timestamp: new Date().toISOString() };
       outputStore.set(project, entry);
+      saveStore();
 
       // Enrich async (non-blocking): read caption + generate share link
       Promise.all([readCaptionFromDropbox(project), getDropboxShareLink(project)])
-        .then(([caption, shareLink]) => { entry.caption = caption; entry.shareLink = shareLink; })
+        .then(([caption, shareLink]) => { entry.caption = caption; entry.shareLink = shareLink; saveStore(); })
         .catch(e => console.error('[callback] enrich error:', e.message));
 
     } else {
@@ -1379,11 +1421,21 @@ app.get('/api/outputs', (req, res) => {
   res.json(list);
 });
 
+app.post('/api/outputs/:id/refresh-caption', async (req, res) => {
+  const entry = outputStore.get(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Not found' });
+  const caption = await readCaptionFromDropbox(entry.project);
+  entry.caption = caption;
+  if (caption) saveStore();
+  res.json({ caption });
+});
+
 app.post('/api/outputs/:id/refresh-link', async (req, res) => {
   const entry = outputStore.get(req.params.id);
   if (!entry) return res.status(404).json({ error: 'Not found' });
   const shareLink = await getDropboxShareLink(entry.project);
   entry.shareLink = shareLink;
+  if (shareLink) saveStore();
   res.json({ shareLink });
 });
 
