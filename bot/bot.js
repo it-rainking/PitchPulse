@@ -1273,10 +1273,20 @@ async function getDropboxShareLink(projectName) {
     const createData = await createRes.json();
     if (createData.url) return toDirectDownloadUrl(createData.url);
 
-    // Handle "link already exists" race condition — Dropbox v2 nests metadata under the error tag key
+    // Handle "link already exists" race condition — two sub-types:
+    // "metadata" includes the URL in the error body; "default" does not.
+    // In both cases the safe path is to re-query list_shared_links.
     if (createData.error && createData.error['.tag'] === 'shared_link_already_exists') {
       const meta = createData.error.shared_link_already_exists?.metadata;
       if (meta && meta.url) return toDirectDownloadUrl(meta.url);
+      // "default" sub-type: re-fetch the existing link
+      const retryRes = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath, direct_only: true })
+      });
+      const retryData = await retryRes.json();
+      if (retryData.links && retryData.links.length > 0) return toDirectDownloadUrl(retryData.links[0].url);
     }
     return null;
   } catch (e) {

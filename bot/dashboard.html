@@ -139,7 +139,6 @@
     th:nth-child(5) { width: 120px; }
     th:nth-child(6) { width: 110px; }
     th:nth-child(7) { width: 120px; }
-    th:nth-child(8) { width: 80px; }
 
     tbody tr {
       border-bottom: 1px solid var(--border);
@@ -354,7 +353,6 @@ function renderTable(data) {
 
   const rows = data.map(entry => {
     const { moment, teams, ts } = parseProject(entry.project);
-    const teamsDisplay = teams.replace('vs', ' vs ').toUpperCase();
     const isSelected = document.getElementById(`chk-${entry.project}`)?.checked || false;
 
     const dateVal = document.getElementById(`date-${entry.project}`)?.value || today;
